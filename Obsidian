@@ -16941,6 +16941,7 @@ function Library:CreateWindow(WindowInfo)
     local holdThread = nil
     local holdStartTime = nil
     local isHolding = false
+    local isWindowLocked = false  -- State lock yang persisten
     local HOLD_DURATION = 3
 
     -- Progress ring untuk visual feedback hold
@@ -16958,34 +16959,31 @@ function Library:CreateWindow(WindowInfo)
         -- Animate ring appearing
         TweenService:Create(ProgressRing, TweenInfo.new(0.1), { Transparency = 0 }):Play()
 
-        -- Sementara lock drag agar window tidak bergeser saat hold
-        local wasLocked = Library.CantDragForced
+        -- Sementara lock drag agar window tidak bergeser saat holding
         Library.CantDragForced = true
 
         holdThread = task.delay(HOLD_DURATION, function()
             if isHolding then
-                -- LOCK TOGGLE - toggle dari state sebelum hold
-                wasLocked = not wasLocked
-                Library.CantDragForced = wasLocked
-                if Library.CantDragForced then
-                    -- Locked - icon jadi hijau
+                -- Toggle lock state
+                isWindowLocked = not isWindowLocked
+                Library.CantDragForced = isWindowLocked
+
+                if isWindowLocked then
                     ToggleButton:SetIconColor(Color3.fromRGB(0, 210, 80))
                     Library.Registry[ToggleButton.Icon] = nil
                     Library:Notify({ Title = "Window Locked", Description = "Window position is now locked.", Duration = 2 })
                 else
-                    -- Unlocked - icon balik ke AccentColor
                     ToggleButton:SetIconColor(Library.Scheme.AccentColor)
                     Library.Registry[ToggleButton.Icon] = { ImageColor3 = "AccentColor" }
                     Library:Notify({ Title = "Window Unlocked", Description = "Window can be moved again.", Duration = 2 })
                 end
 
-                -- Flash ring konfirmasi
-                local confirmColor = Library.CantDragForced and Color3.fromRGB(0, 210, 80) or Library.Scheme.AccentColor
+                local confirmColor = isWindowLocked and Color3.fromRGB(0, 210, 80) or Library.Scheme.AccentColor
                 ProgressRing.Color = confirmColor
                 TweenService:Create(ProgressRing, TweenInfo.new(0.3), { Transparency = 1 }):Play()
             else
-                -- Hold dibatalkan, restore state sebelumnya
-                Library.CantDragForced = wasLocked
+                -- Hold dibatalkan, restore state lock sebelumnya
+                Library.CantDragForced = isWindowLocked
             end
         end)
     end)
