@@ -12248,7 +12248,7 @@ function Library:CreateWindow(WindowInfo)
                 BackgroundTransparency = 1,
                 Size = UDim2.new(0, 0, 1, 0),
                 Text = Text,
-                TextColor3 = Copyable and "BlueColor" or "FontColor",
+                TextColor3 = Copyable and "AccentColor" or "FontColor",
                 TextSize = 14,
                 TextTransparency = Copyable and 0 or 0.5,
                 Parent = FooterHolder,
@@ -12288,7 +12288,7 @@ function Library:CreateWindow(WindowInfo)
 
             local CopyImage = New("ImageLabel", {
                 Image = CopyIcon and CopyIcon.Url or "",
-                ImageColor3 = "BlueColor",
+                ImageColor3 = "AccentColor",
                 ImageRectOffset = CopyIcon and CopyIcon.ImageRectOffset or Vector2.zero,
                 ImageRectSize = CopyIcon and CopyIcon.ImageRectSize or Vector2.zero,
                 ScaleType = Enum.ScaleType.Fit,
