@@ -2468,6 +2468,9 @@ function Library:AddDraggableLabel(...)
     Library:MakeDraggable(Label, Label, true)
 
     function DraggableLabel:SetText(Text: string)
+        if type(Text) ~= "string" then
+            Text = tostring(Text or "")
+        end
         Label.Text = Text
     end
 
@@ -2628,6 +2631,9 @@ function Library:AddDraggableButton(...)
     end)
 
     function DraggableButton:SetText(Text: string)
+        if type(Text) ~= "string" then
+            Text = tostring(Text or "")
+        end
         local X, Y = Library:GetTextBounds(Text, Library.Scheme.Font, 16)
 
         Button.Text = Text
@@ -5075,6 +5081,9 @@ do
         end
 
         function Label:SetText(Text: string)
+            if type(Text) ~= "string" then
+                Text = tostring(Text or "")
+            end
             Label.Text = Text
             TextLabel.Text = Text
 
@@ -5537,6 +5546,9 @@ do
             end
 
             function SubButton:SetText(Text: string)
+                if type(Text) ~= "string" then
+                    Text = tostring(Text or "")
+                end
                 SubButton.Text = Text
                 SubButton.Base.Text = Text
             end
@@ -5625,6 +5637,9 @@ do
         end
 
         function Button:SetText(Text: string)
+            if type(Text) ~= "string" then
+                Text = tostring(Text or "")
+            end
             Button.Text = Text
             Button.Base.Text = Text
         end
@@ -5871,6 +5886,9 @@ do
         end
 
         function Toggle:SetText(Text: string)
+            if type(Text) ~= "string" then
+                Text = tostring(Text or "")
+            end
             Toggle.Text = Text
             Label.Text = Text
         end
@@ -6189,6 +6207,9 @@ do
         end
 
         function Toggle:SetText(Text: string)
+            if type(Text) ~= "string" then
+                Text = tostring(Text or "")
+            end
             Toggle.Text = Text
             Label.Text = Text
         end
@@ -6885,6 +6906,9 @@ do
         end
 
         function Slider:SetText(Text: string)
+            if type(Text) ~= "string" then
+                Text = tostring(Text or "")
+            end
             Slider.Text = Text
             if SliderLabel then
                 SliderLabel.Text = Text
@@ -7909,6 +7933,9 @@ do
         end
 
         function Dropdown:SetText(Text: string)
+            if type(Text) ~= "string" and Text ~= nil then
+                Text = tostring(Text or "")
+            end
             Dropdown.Text = Text
             Holder.Size = UDim2.new(1, 0, 0, Text and 39 or 21)
 
