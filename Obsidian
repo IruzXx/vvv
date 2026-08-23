@@ -16928,23 +16928,31 @@ function Library:CreateWindow(WindowInfo)
     end
     
     ToggleButton = CreateSquareMobileButton("menu")
+    ToggleButton:SetIconColor(Library.Scheme.AccentColor)
+    Library.Registry[ToggleButton.Icon] = { ImageColor3 = "AccentColor" }
     ToggleButton.Button.MouseButton1Click:Connect(function()
         Library:Toggle()
     end)
     LockButton = CreateSquareMobileButton("lock")
-    LockButton:SetIconColor(Color3.fromRGB(220, 50, 50))
+    LockButton:SetIconColor(Library.Scheme.DestructiveColor)
+    Library.Registry[LockButton.Icon] = { ImageColor3 = "DestructiveColor" }
     LockButton.Button.MouseButton1Click:Connect(function()
         Library.CantDragForced = not Library.CantDragForced
         if Library.CantDragForced then
+            -- Locked (green) - safe state
             LockButton:SetIconColor(Color3.fromRGB(0, 210, 80))
+            Library.Registry[LockButton.Icon] = nil  -- Remove from registry saat locked
         else
-            LockButton:SetIconColor(Color3.fromRGB(220, 50, 50))
+            -- Unlocked (red/destructive) - can be moved
+            LockButton:SetIconColor(Library.Scheme.DestructiveColor)
+            Library.Registry[LockButton.Icon] = { ImageColor3 = "DestructiveColor" }
         end
     end)
 
     --// Trash: permanently removes the window and all registered resources
     local TrashButton = CreateSquareMobileButton("trash-2")
-    TrashButton:SetIconColor(Color3.fromRGB(220, 80, 80))
+    TrashButton:SetIconColor(Library.Scheme.DestructiveColor)
+    Library.Registry[TrashButton.Icon] = { ImageColor3 = "DestructiveColor" }
     TrashButton.Button.MouseButton1Click:Connect(function()
         Library:Unload()
     end)
