@@ -2016,6 +2016,9 @@ function Library:MakeDraggable(UI: GuiObject, DragFrame: GuiObject, IgnoreToggle
         if not IsClickInput(Input) or IsMainWindow and Library.CantDragForced then
             return
         end
+        if IsMainWindow and Library.WindowLocked then
+            return
+        end
 
         StartPos = Input.Position
         FramePos = UI.Position
@@ -16971,6 +16974,16 @@ function Library:CreateWindow(WindowInfo)
                 Library.WindowLocked = isWindowLocked
                 Library.CantDragForced = isWindowLocked
 
+                -- Langsung disable/enable TopBar input untuk block drag
+                if Library.MainDragFrame then
+                    Library.MainDragFrame.Active = not isWindowLocked
+                    for _, child in Library.MainDragFrame:GetDescendants() do
+                        if child:IsA("GuiButton") or child:IsA("GuiObject") then
+                            pcall(function() child.Active = not isWindowLocked end)
+                        end
+                    end
+                end
+
                 if isWindowLocked then
                     -- Locked - ring jadi hijau, logo tetap warna asli
                     ProgressRing.Color = Color3.fromRGB(0, 210, 80)
@@ -17178,6 +17191,9 @@ function Library:CreateLoading(LoadingInfo)
         Parent = Container,
     })
     Library:MakeDraggable(MainFrame, TopBar, true, true)
+
+    -- Expose TopBar agar bisa di-lock dari luar
+    Library.MainDragFrame = TopBar
 
     local TitleHolder = New("Frame", {
         BackgroundTransparency = 1,
