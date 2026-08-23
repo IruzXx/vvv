@@ -3589,7 +3589,7 @@ do
             end
 
             if SlideBackTween then
-                SlideForwardTween(SlideBackTween, true)
+                StopTween(SlideBackTween, true)
                 SlideBackTween = nil
             end
         end
@@ -13057,8 +13057,10 @@ function Library:CreateWindow(WindowInfo)
                     SizeConstraint = IsCompact and Enum.SizeConstraint.RelativeXY or Enum.SizeConstraint.RelativeYY,
                     Parent = TabButton,
                 })
-                if ResolvedIconColor then
-                    Library.Registry[TabIcon] = { ImageColor3 = ResolvedIconColor }
+                -- Simpan string scheme key bukan Color3 value agar ikuti theme changes
+                local registryColor = (typeof(TabIconColor) == "string") and TabIconColor or ResolvedIconColor
+                if registryColor then
+                    Library.Registry[TabIcon] = { ImageColor3 = registryColor }
                 end
             end
 
@@ -16946,8 +16948,9 @@ function Library:CreateWindow(WindowInfo)
     LockButton.Button.MouseButton1Click:Connect(function()
         Library.CantDragForced = not Library.CantDragForced
         if Library.CantDragForced then
-            LockButton:SetIconColor(Color3.fromRGB(0, 210, 80))
-            Library.Registry[LockButton.Icon] = nil
+            -- Locked: pakai skema warna yang tersedia (tidak hardcode)
+            LockButton:SetIconColor(Library.Scheme.AccentColor)
+            Library.Registry[LockButton.Icon] = { ImageColor3 = "AccentColor" }
         else
             LockButton:SetIconColor(Library.Scheme.DestructiveColor)
             Library.Registry[LockButton.Icon] = { ImageColor3 = "DestructiveColor" }
@@ -16975,6 +16978,10 @@ function Library:CreateWindow(WindowInfo)
     end
     if WindowInfo.ShowMobileButtons == false then
         ToggleButton.Button.Visible = false
+        LockButton.Button.Visible = false
+        TrashButton.Button.Visible = false
+    else
+        -- Selalu sembunyikan lock dan trash, hanya logo toggle yang muncul
         LockButton.Button.Visible = false
         TrashButton.Button.Visible = false
     end
