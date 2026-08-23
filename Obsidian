@@ -14212,8 +14212,26 @@ function Library:CreateWindow(WindowInfo)
                     BackgroundColor3 = "BackgroundColor",
                     Size = UDim2.fromScale(1, 0),
                     Parent = BoxHolder,
-                    ClipsDescendants = false, -- Changed to false agar animasi tidak terpotong
+                    ClipsDescendants = true,
                 })
+
+                if Library.AddGroupboxAnimation then
+                    local AnimLine = New("Frame", {
+                        BackgroundColor3 = "AccentColor",
+                        BackgroundTransparency = 0.2,
+                        Size = UDim2.new(0, 50, 0, 2),
+                        Position = UDim2.new(0, -50, 0, 0),
+                        ZIndex = 5,
+                        Parent = GroupboxHolder,
+                    })
+                    task.spawn(function()
+                        while GroupboxHolder and GroupboxHolder.Parent do
+                            AnimLine.Position = UDim2.new(0, -50, 0, 0)
+                            TweenService:Create(AnimLine, TweenInfo.new(2, Enum.EasingStyle.Linear), {Position = UDim2.new(1, 50, 0, 0)}):Play()
+                            task.wait(3)
+                        end
+                    end)
+                end
 
                 table.insert(
                     Library.Corners,
@@ -14309,7 +14327,6 @@ function Library:CreateWindow(WindowInfo)
                 Name = Info.Name,
 
                 Connections = {},
-                AnimThreads = {},
                 Destroyed = false,
 
                 Visible = true,
@@ -14403,13 +14420,6 @@ function Library:CreateWindow(WindowInfo)
 
             function Groupbox:Destroy()
                 Groupbox.Destroyed = true
-
-                -- Cleanup animation threads
-                if Groupbox.AnimThreads then
-                    for _, thread in Groupbox.AnimThreads do
-                        task.cancel(thread)
-                    end
-                end
 
                 if ResizeTween then
                     StopTween(ResizeTween, true)
@@ -14506,57 +14516,6 @@ function Library:CreateWindow(WindowInfo)
 
             if Info.DisableCollapsing ~= true and Info.Collapsed == true then
                 Groupbox:SetCollapsed(true)
-            end
-
-            -- Debug print BEFORE animation check
-            print("[DEBUG] Groupbox created:", Info.Name, "AddGroupboxAnimation:", Library.AddGroupboxAnimation)
-            
-            -- Add animated line after Groupbox is created
-            if Library.AddGroupboxAnimation then
-                print("[DEBUG] Creating animated line for groupbox:", Info.Name)
-                
-                local AnimLine = New("Frame", {
-                    BackgroundColor3 = Color3.fromRGB(0, 200, 255), -- Cyan terang
-                    BackgroundTransparency = 0,
-                    BorderSizePixel = 0,
-                    Size = UDim2.new(0, 100, 0, 4), -- 100x4
-                    Position = UDim2.new(0, 10, 0, 32),
-                    ZIndex = 20,
-                    Visible = true,
-                    Parent = GroupboxHolder,
-                })
-                New("UICorner", {
-                    CornerRadius = UDim.new(0, 2),
-                    Parent = AnimLine,
-                })
-                
-                print("[DEBUG] AnimLine created at 10,32 size 100x4")
-                
-                local animThread = task.spawn(function()
-                    local count = 0
-                    while GroupboxHolder and GroupboxHolder.Parent and not Groupbox.Destroyed do
-                        count = count + 1
-                        if count <= 2 then
-                            print("[DEBUG] Animation loop", count, "for", Info.Name)
-                        end
-                        
-                        AnimLine.Position = UDim2.new(0, 10, 0, 32)
-                        AnimLine.Visible = true
-                        
-                        local tween = TweenService:Create(
-                            AnimLine, 
-                            TweenInfo.new(2.0, Enum.EasingStyle.Linear), 
-                            {Position = UDim2.new(1, -110, 0, 32)}
-                        )
-                        tween:Play()
-                        tween.Completed:Wait()
-                        task.wait(0.5)
-                    end
-                end)
-                
-                table.insert(Groupbox.AnimThreads, animThread)
-            else
-                print("[DEBUG] AddGroupboxAnimation is FALSE, skipping animation")
             end
 
             return Groupbox
