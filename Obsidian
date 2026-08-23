@@ -16841,7 +16841,8 @@ function Library:CreateWindow(WindowInfo)
                     return
                 end
 
-                Library.CantDragForced = false
+                -- Restore ke lock state yang sebenarnya, bukan hardcode false
+                Library.CantDragForced = Library.WindowLocked or false
                 TweenService:Create(DividerLine, Library.TweenInfo, {
                     BackgroundColor3 = Library.Scheme.OutlineColor,
                 }):Play()
@@ -16942,6 +16943,7 @@ function Library:CreateWindow(WindowInfo)
     local holdStartTime = nil
     local isHolding = false
     local isWindowLocked = false  -- State lock yang persisten
+    Library.WindowLocked = false  -- Expose ke Library agar sidebar resize bisa baca
     local HOLD_DURATION = 3
 
     -- Progress ring untuk visual feedback hold
@@ -16966,14 +16968,17 @@ function Library:CreateWindow(WindowInfo)
             if isHolding then
                 -- Toggle lock state
                 isWindowLocked = not isWindowLocked
+                Library.WindowLocked = isWindowLocked
                 Library.CantDragForced = isWindowLocked
 
                 if isWindowLocked then
-                    ToggleButton:SetIconColor(Color3.fromRGB(0, 210, 80))
-                    Library.Registry[ToggleButton.Icon] = nil
+                    -- Locked - ring jadi hijau, logo tetap warna asli
+                    ProgressRing.Color = Color3.fromRGB(0, 210, 80)
+                    Library.Registry[ToggleButton.Icon] = { ImageColor3 = "AccentColor" }
                     Library:Notify({ Title = "Window Locked", Description = "Window position is now locked.", Duration = 2 })
                 else
-                    ToggleButton:SetIconColor(Library.Scheme.AccentColor)
+                    -- Unlocked - ring balik ke AccentColor
+                    ProgressRing.Color = Library.Scheme.AccentColor
                     Library.Registry[ToggleButton.Icon] = { ImageColor3 = "AccentColor" }
                     Library:Notify({ Title = "Window Unlocked", Description = "Window can be moved again.", Duration = 2 })
                 end
@@ -16984,6 +16989,7 @@ function Library:CreateWindow(WindowInfo)
             else
                 -- Hold dibatalkan, restore state lock sebelumnya
                 Library.CantDragForced = isWindowLocked
+                Library.WindowLocked = isWindowLocked
             end
         end)
     end)
