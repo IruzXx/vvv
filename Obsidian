@@ -6277,7 +6277,7 @@ do
             Destroyed = false,
 
             Text = Info.Text,
-            Value = Info.Default,
+            Value = type(Info.Default) == "string" and Info.Default or tostring(Info.Default or ""),
 
             Finished = Info.Finished,
             Numeric = Info.Numeric,
@@ -6311,7 +6311,7 @@ do
         local Label = New("TextLabel", {
             BackgroundTransparency = 1,
             Size = UDim2.new(1, 0, 0, 14),
-            Text = Input.Text,
+            Text = tostring(Input.Text or ""),
             TextSize = 14,
             TextXAlignment = Enum.TextXAlignment.Left,
             Parent = Holder,
@@ -6324,7 +6324,7 @@ do
             PlaceholderText = Input.Placeholder,
             Position = UDim2.fromScale(0, 1),
             Size = UDim2.new(1, 0, 0, 21),
-            Text = Input.Value,
+            Text = tostring(Input.Value or ""),
             TextEditable = not Input.Disabled,
             TextScaled = true,
             TextXAlignment = Enum.TextXAlignment.Left,
@@ -6394,7 +6394,7 @@ do
             end
 
             Input.Value = Text
-            Box.Text = Text
+            Box.Text = tostring(Text or "")
 
             if not Input.Disabled then
                 Input:RunChanged()
@@ -6421,6 +6421,9 @@ do
         end
 
         function Input:SetText(Text: string)
+            if type(Text) ~= "string" then
+                Text = tostring(Text or "")
+            end
             Input.Text = Text
             Label.Text = Text
         end
