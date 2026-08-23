@@ -2774,7 +2774,6 @@ function Library:CreateArrayList(Config)
     
     local ArrayList = {
         Enabled = false,
-        ScreenGui = nil,
         ListFrame = nil,
         UpdateConnection = nil,
         Position = Position,
@@ -2812,8 +2811,9 @@ function Library:CreateArrayList(Config)
     end
     
     local function CreateUI()
-        if ArrayList.ScreenGui then
-            ArrayList.ScreenGui:Destroy()
+        if ArrayList.ListFrame and ArrayList.ListFrame.Parent then
+            ArrayList.ListFrame:Destroy()
+            ArrayList.ListFrame = nil
         end
         
         -- Calculate proper size based on position
@@ -2824,15 +2824,14 @@ function Library:CreateArrayList(Config)
             frameSize = UDim2.new(0, Width, 1, -(OffsetY * 2))
         end
         
-        -- Use existing Library ScreenGui instead of creating new one
+        -- Create Frame directly in Library's ScreenGui
         ArrayList.ListFrame = New("Frame", {
-            Name = "ObsidianArrayList",
             Size = frameSize,
             Position = GetPositionUDim2(),
             BackgroundTransparency = 1,
             ZIndex = 1000,
             ClipsDescendants = false,
-            Parent = ScreenGui, -- Use Library's ScreenGui
+            Parent = ScreenGui, -- Direct parent to Library ScreenGui
         })
         
         local layout = New("UIListLayout", {
@@ -2843,10 +2842,12 @@ function Library:CreateArrayList(Config)
             Parent = ArrayList.ListFrame,
         })
         
-        ArrayList.ScreenGui = ArrayList.ListFrame -- Reference for compatibility
-        
         Library:GiveSignal(ArrayList.ListFrame.Destroying:Connect(function()
-            ArrayList:Stop()
+            if ArrayList.UpdateConnection then
+                ArrayList.UpdateConnection:Disconnect()
+                ArrayList.UpdateConnection = nil
+            end
+            ArrayList.Enabled = false
         end))
     end
     
@@ -2959,24 +2960,40 @@ function Library:CreateArrayList(Config)
             ArrayList.UpdateConnection:Disconnect()
             ArrayList.UpdateConnection = nil
         end
-        if ArrayList.ListFrame then
-            ArrayList.ListFrame:Destroy()
+        if ArrayList.ListFrame and ArrayList.ListFrame.Parent then
+            pcall(function()
+                ArrayList.ListFrame:Destroy()
+            end)
             ArrayList.ListFrame = nil
         end
-        ArrayList.ScreenGui = nil
     end
     
     function ArrayList:SetPosition(NewPosition)
+        if ArrayList.Position == NewPosition then
+            return -- Prevent unnecessary recreation
+        end
+        
         ArrayList.Position = NewPosition
         Position = NewPosition
         
-        if ArrayList.Enabled then
-            -- Recreate UI with new position
-            local wasEnabled = ArrayList.Enabled
-            ArrayList:Stop()
-            if wasEnabled then
-                ArrayList:Start()
+        if ArrayList.Enabled and ArrayList.ListFrame then
+            -- Simply update position and layout without full recreation
+            ArrayList.ListFrame.Position = GetPositionUDim2()
+            
+            -- Update size for bottom positions
+            if Position == "BottomRight" or Position == "BottomLeft" then
+                ArrayList.ListFrame.Size = UDim2.new(0, Width, 0, 500)
+            else
+                ArrayList.ListFrame.Size = UDim2.new(0, Width, 1, -(OffsetY * 2))
             end
+            
+            local layout = ArrayList.ListFrame:FindFirstChildOfClass("UIListLayout")
+            if layout then
+                layout.HorizontalAlignment = GetHorizontalAlignment()
+                layout.VerticalAlignment = GetVerticalAlignment()
+            end
+            
+            UpdateList()
         end
     end
     
