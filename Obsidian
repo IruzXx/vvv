@@ -2016,9 +2016,6 @@ function Library:MakeDraggable(UI: GuiObject, DragFrame: GuiObject, IgnoreToggle
         if not IsClickInput(Input) or IsMainWindow and Library.CantDragForced then
             return
         end
-        if IsMainWindow and Library.WindowLocked then
-            return
-        end
 
         StartPos = Input.Position
         FramePos = UI.Position
@@ -2041,7 +2038,6 @@ function Library:MakeDraggable(UI: GuiObject, DragFrame: GuiObject, IgnoreToggle
         if
             (not IgnoreToggled and not Library.Toggled)
             or (IsMainWindow and Library.CantDragForced)
-            or (IsMainWindow and Library.WindowLocked)
             or not (ScreenGui and ScreenGui.Parent)
         then
             Dragging = false
@@ -16845,8 +16841,7 @@ function Library:CreateWindow(WindowInfo)
                     return
                 end
 
-                -- Restore ke lock state yang sebenarnya, bukan hardcode false
-                Library.CantDragForced = Library.WindowLocked or false
+                Library.CantDragForced = false
                 TweenService:Create(DividerLine, Library.TweenInfo, {
                     BackgroundColor3 = Library.Scheme.OutlineColor,
                 }):Play()
@@ -16941,85 +16936,23 @@ function Library:CreateWindow(WindowInfo)
     ToggleButton = CreateSquareMobileButton("menu")
     ToggleButton:SetIconColor(Library.Scheme.AccentColor)
     Library.Registry[ToggleButton.Icon] = { ImageColor3 = "AccentColor" }
-
-    -- Hold 3 detik = toggle lock, klik biasa = toggle window
-    local holdThread = nil
-    local holdStartTime = nil
-    local isHolding = false
-    local isWindowLocked = false  -- State lock yang persisten
-    Library.WindowLocked = false  -- Expose ke Library agar sidebar resize bisa baca
-    local HOLD_DURATION = 3
-
-    -- Progress ring untuk visual feedback hold
-    local ProgressRing = Instance.new("UIStroke")
-    ProgressRing.Color = Library.Scheme.AccentColor
-    ProgressRing.Thickness = 2.5
-    ProgressRing.Transparency = 1
-    ProgressRing.Parent = ToggleButton.Button
-    Library.Registry[ProgressRing] = { Color = "AccentColor" }
-
-    ToggleButton.Button.MouseButton1Down:Connect(function()
-        isHolding = true
-        holdStartTime = tick()
-
-        -- Animate ring appearing
-        TweenService:Create(ProgressRing, TweenInfo.new(0.1), { Transparency = 0 }):Play()
-
-        -- Sementara lock drag agar window tidak bergeser saat holding
-        Library.CantDragForced = true
-
-        holdThread = task.delay(HOLD_DURATION, function()
-            if isHolding then
-                -- Toggle lock state
-                isWindowLocked = not isWindowLocked
-                Library:SetWindowLocked(isWindowLocked)
-
-                if isWindowLocked then
-                    -- Locked - ring jadi hijau, logo tetap warna asli
-                    ProgressRing.Color = Color3.fromRGB(0, 210, 80)
-                    Library.Registry[ToggleButton.Icon] = { ImageColor3 = "AccentColor" }
-                    Library:Notify({ Title = "Window Locked", Description = "Window position is now locked.", Duration = 2 })
-                else
-                    -- Unlocked - ring balik ke AccentColor
-                    ProgressRing.Color = Library.Scheme.AccentColor
-                    Library.Registry[ToggleButton.Icon] = { ImageColor3 = "AccentColor" }
-                    Library:Notify({ Title = "Window Unlocked", Description = "Window can be moved again.", Duration = 2 })
-                end
-
-                local confirmColor = isWindowLocked and Color3.fromRGB(0, 210, 80) or Library.Scheme.AccentColor
-                ProgressRing.Color = confirmColor
-                TweenService:Create(ProgressRing, TweenInfo.new(0.3), { Transparency = 1 }):Play()
-            else
-                -- Hold dibatalkan, restore state lock sebelumnya
-                Library:SetWindowLocked(isWindowLocked)
-            end
-        end)
+    ToggleButton.Button.MouseButton1Click:Connect(function()
+        Library:Toggle()
     end)
 
-    ToggleButton.Button.MouseButton1Up:Connect(function()
-        local elapsed = holdStartTime and (tick() - holdStartTime) or 0
-        isHolding = false
-
-        -- Cancel hold thread
-        if holdThread then
-            task.cancel(holdThread)
-            holdThread = nil
-        end
-
-        -- Fade out ring
-        TweenService:Create(ProgressRing, TweenInfo.new(0.15), { Transparency = 1 }):Play()
-
-        -- Kalau hold kurang dari durasi = klik biasa → toggle window
-        if elapsed < HOLD_DURATION then
-            Library:Toggle()
-        end
-    end)
-
-    -- Sembunyikan LockButton terpisah karena sudah digabung ke logo
     LockButton = CreateSquareMobileButton("lock")
     LockButton:SetIconColor(Library.Scheme.DestructiveColor)
     Library.Registry[LockButton.Icon] = { ImageColor3 = "DestructiveColor" }
-    LockButton.Button.Visible = false
+    LockButton.Button.MouseButton1Click:Connect(function()
+        Library.CantDragForced = not Library.CantDragForced
+        if Library.CantDragForced then
+            LockButton:SetIconColor(Color3.fromRGB(0, 210, 80))
+            Library.Registry[LockButton.Icon] = nil
+        else
+            LockButton:SetIconColor(Library.Scheme.DestructiveColor)
+            Library.Registry[LockButton.Icon] = { ImageColor3 = "DestructiveColor" }
+        end
+    end)
 
     --// Trash: permanently removes the window and all registered resources
     local TrashButton = CreateSquareMobileButton("trash-2")
@@ -17180,38 +17113,6 @@ function Library:CreateLoading(LoadingInfo)
         Parent = Container,
     })
     Library:MakeDraggable(MainFrame, TopBar, true, true)
-
-    -- Expose untuk lock system
-    Library.MainDragFrame = TopBar
-    Library.MainWindowFrame = MainFrame
-    Library.WindowLocked = false
-    local lockedPosition = nil
-    local lockConnection = nil
-
-    -- Fungsi untuk freeze/unfreeze posisi window
-    function Library:SetWindowLocked(locked)
-        Library.WindowLocked = locked
-        Library.CantDragForced = locked
-
-        if locked then
-            -- Simpan posisi saat ini
-            lockedPosition = MainFrame.Position
-            -- Connect property change untuk force posisi tetap
-            if lockConnection then lockConnection:Disconnect() end
-            lockConnection = MainFrame:GetPropertyChangedSignal("Position"):Connect(function()
-                if Library.WindowLocked and lockedPosition then
-                    MainFrame.Position = lockedPosition
-                end
-            end)
-        else
-            -- Disconnect freeze
-            if lockConnection then
-                lockConnection:Disconnect()
-                lockConnection = nil
-            end
-            lockedPosition = nil
-        end
-    end
 
     local TitleHolder = New("Frame", {
         BackgroundTransparency = 1,
