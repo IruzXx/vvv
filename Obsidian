@@ -16958,10 +16958,15 @@ function Library:CreateWindow(WindowInfo)
         -- Animate ring appearing
         TweenService:Create(ProgressRing, TweenInfo.new(0.1), { Transparency = 0 }):Play()
 
+        -- Sementara lock drag agar window tidak bergeser saat hold
+        local wasLocked = Library.CantDragForced
+        Library.CantDragForced = true
+
         holdThread = task.delay(HOLD_DURATION, function()
             if isHolding then
-                -- LOCK TOGGLE
-                Library.CantDragForced = not Library.CantDragForced
+                -- LOCK TOGGLE - toggle dari state sebelum hold
+                wasLocked = not wasLocked
+                Library.CantDragForced = wasLocked
                 if Library.CantDragForced then
                     -- Locked - icon jadi hijau
                     ToggleButton:SetIconColor(Color3.fromRGB(0, 210, 80))
@@ -16974,10 +16979,13 @@ function Library:CreateWindow(WindowInfo)
                     Library:Notify({ Title = "Window Unlocked", Description = "Window can be moved again.", Duration = 2 })
                 end
 
-                -- Flash ring hijau/merah sebagai konfirmasi
+                -- Flash ring konfirmasi
                 local confirmColor = Library.CantDragForced and Color3.fromRGB(0, 210, 80) or Library.Scheme.AccentColor
                 ProgressRing.Color = confirmColor
                 TweenService:Create(ProgressRing, TweenInfo.new(0.3), { Transparency = 1 }):Play()
+            else
+                -- Hold dibatalkan, restore state sebelumnya
+                Library.CantDragForced = wasLocked
             end
         end)
     end)
