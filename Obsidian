@@ -16936,24 +16936,76 @@ function Library:CreateWindow(WindowInfo)
     ToggleButton = CreateSquareMobileButton("menu")
     ToggleButton:SetIconColor(Library.Scheme.AccentColor)
     Library.Registry[ToggleButton.Icon] = { ImageColor3 = "AccentColor" }
-    ToggleButton.Button.MouseButton1Click:Connect(function()
-        Library:Toggle()
+
+    -- Hold 3 detik = toggle lock, klik biasa = toggle window
+    local holdThread = nil
+    local holdStartTime = nil
+    local isHolding = false
+    local HOLD_DURATION = 3
+
+    -- Progress ring untuk visual feedback hold
+    local ProgressRing = Instance.new("UIStroke")
+    ProgressRing.Color = Library.Scheme.AccentColor
+    ProgressRing.Thickness = 2.5
+    ProgressRing.Transparency = 1
+    ProgressRing.Parent = ToggleButton.Button
+    Library.Registry[ProgressRing] = { Color = "AccentColor" }
+
+    ToggleButton.Button.MouseButton1Down:Connect(function()
+        isHolding = true
+        holdStartTime = tick()
+
+        -- Animate ring appearing
+        TweenService:Create(ProgressRing, TweenInfo.new(0.1), { Transparency = 0 }):Play()
+
+        holdThread = task.delay(HOLD_DURATION, function()
+            if isHolding then
+                -- LOCK TOGGLE
+                Library.CantDragForced = not Library.CantDragForced
+                if Library.CantDragForced then
+                    -- Locked - icon jadi hijau
+                    ToggleButton:SetIconColor(Color3.fromRGB(0, 210, 80))
+                    Library.Registry[ToggleButton.Icon] = nil
+                    Library:Notify({ Title = "Window Locked", Description = "Window position is now locked.", Duration = 2 })
+                else
+                    -- Unlocked - icon balik ke AccentColor
+                    ToggleButton:SetIconColor(Library.Scheme.AccentColor)
+                    Library.Registry[ToggleButton.Icon] = { ImageColor3 = "AccentColor" }
+                    Library:Notify({ Title = "Window Unlocked", Description = "Window can be moved again.", Duration = 2 })
+                end
+
+                -- Flash ring hijau/merah sebagai konfirmasi
+                local confirmColor = Library.CantDragForced and Color3.fromRGB(0, 210, 80) or Library.Scheme.AccentColor
+                ProgressRing.Color = confirmColor
+                TweenService:Create(ProgressRing, TweenInfo.new(0.3), { Transparency = 1 }):Play()
+            end
+        end)
     end)
+
+    ToggleButton.Button.MouseButton1Up:Connect(function()
+        local elapsed = holdStartTime and (tick() - holdStartTime) or 0
+        isHolding = false
+
+        -- Cancel hold thread
+        if holdThread then
+            task.cancel(holdThread)
+            holdThread = nil
+        end
+
+        -- Fade out ring
+        TweenService:Create(ProgressRing, TweenInfo.new(0.15), { Transparency = 1 }):Play()
+
+        -- Kalau hold kurang dari durasi = klik biasa → toggle window
+        if elapsed < HOLD_DURATION then
+            Library:Toggle()
+        end
+    end)
+
+    -- Sembunyikan LockButton terpisah karena sudah digabung ke logo
     LockButton = CreateSquareMobileButton("lock")
     LockButton:SetIconColor(Library.Scheme.DestructiveColor)
     Library.Registry[LockButton.Icon] = { ImageColor3 = "DestructiveColor" }
-    LockButton.Button.MouseButton1Click:Connect(function()
-        Library.CantDragForced = not Library.CantDragForced
-        if Library.CantDragForced then
-            -- Locked (green) - safe state
-            LockButton:SetIconColor(Color3.fromRGB(0, 210, 80))
-            Library.Registry[LockButton.Icon] = nil  -- Remove from registry saat locked
-        else
-            -- Unlocked (red/destructive) - can be moved
-            LockButton:SetIconColor(Library.Scheme.DestructiveColor)
-            Library.Registry[LockButton.Icon] = { ImageColor3 = "DestructiveColor" }
-        end
-    end)
+    LockButton.Button.Visible = false
 
     --// Trash: permanently removes the window and all registered resources
     local TrashButton = CreateSquareMobileButton("trash-2")
