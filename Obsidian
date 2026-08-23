@@ -2678,10 +2678,10 @@ function Library:AddDraggableMenu(Name: string)
     end
     
     local Holder = New("Frame", {
-        AutomaticSize = Enum.AutomaticSize.XY,
+        AutomaticSize = Enum.AutomaticSize.Y, -- Only auto-size height, not width
         BackgroundColor3 = "BackgroundColor",
         Position = UDim2.fromOffset(6, 6),
-        Size = UDim2.fromOffset(0, 0),
+        Size = UDim2.fromOffset(250, 0), -- Fixed width of 250px
         ZIndex = 10,
         Parent = ScreenGui,
     })
