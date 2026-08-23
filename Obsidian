@@ -16918,6 +16918,12 @@ function Library:CreateWindow(WindowInfo)
             BtnIcon.ImageRectOffset = IconData.ImageRectOffset
             BtnIcon.ImageRectSize = IconData.ImageRectSize
         end
+        -- Custom logo untuk toggle button (menu)
+        if IconName == "menu" then
+            BtnIcon.Image = "rbxassetid://121546427274411"
+            BtnIcon.ImageRectOffset = Vector2.zero
+            BtnIcon.ImageRectSize = Vector2.zero
+        end
         Library:MakeDraggable(Btn, Btn, true)
         T.Button = Btn
         T.Icon = BtnIcon
@@ -16930,10 +16936,6 @@ function Library:CreateWindow(WindowInfo)
     ToggleButton = CreateSquareMobileButton("menu")
     ToggleButton:SetIconColor(Library.Scheme.AccentColor)
     Library.Registry[ToggleButton.Icon] = { ImageColor3 = "AccentColor" }
-    -- Ganti icon menu dengan logo custom
-    ToggleButton.Icon.Image = "rbxassetid://121546427274411"
-    ToggleButton.Icon.ImageRectOffset = Vector2.zero
-    ToggleButton.Icon.ImageRectSize = Vector2.zero
     ToggleButton.Button.MouseButton1Click:Connect(function()
         Library:Toggle()
     end)
