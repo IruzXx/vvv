@@ -16972,18 +16972,7 @@ function Library:CreateWindow(WindowInfo)
             if isHolding then
                 -- Toggle lock state
                 isWindowLocked = not isWindowLocked
-                Library.WindowLocked = isWindowLocked
-                Library.CantDragForced = isWindowLocked
-
-                -- Langsung disable/enable TopBar input untuk block drag
-                if Library.MainDragFrame then
-                    Library.MainDragFrame.Active = not isWindowLocked
-                    for _, child in Library.MainDragFrame:GetDescendants() do
-                        if child:IsA("GuiButton") or child:IsA("GuiObject") then
-                            pcall(function() child.Active = not isWindowLocked end)
-                        end
-                    end
-                end
+                Library:SetWindowLocked(isWindowLocked)
 
                 if isWindowLocked then
                     -- Locked - ring jadi hijau, logo tetap warna asli
@@ -17002,8 +16991,7 @@ function Library:CreateWindow(WindowInfo)
                 TweenService:Create(ProgressRing, TweenInfo.new(0.3), { Transparency = 1 }):Play()
             else
                 -- Hold dibatalkan, restore state lock sebelumnya
-                Library.CantDragForced = isWindowLocked
-                Library.WindowLocked = isWindowLocked
+                Library:SetWindowLocked(isWindowLocked)
             end
         end)
     end)
@@ -17193,8 +17181,37 @@ function Library:CreateLoading(LoadingInfo)
     })
     Library:MakeDraggable(MainFrame, TopBar, true, true)
 
-    -- Expose TopBar agar bisa di-lock dari luar
+    -- Expose untuk lock system
     Library.MainDragFrame = TopBar
+    Library.MainWindowFrame = MainFrame
+    Library.WindowLocked = false
+    local lockedPosition = nil
+    local lockConnection = nil
+
+    -- Fungsi untuk freeze/unfreeze posisi window
+    function Library:SetWindowLocked(locked)
+        Library.WindowLocked = locked
+        Library.CantDragForced = locked
+
+        if locked then
+            -- Simpan posisi saat ini
+            lockedPosition = MainFrame.Position
+            -- Connect property change untuk force posisi tetap
+            if lockConnection then lockConnection:Disconnect() end
+            lockConnection = MainFrame:GetPropertyChangedSignal("Position"):Connect(function()
+                if Library.WindowLocked and lockedPosition then
+                    MainFrame.Position = lockedPosition
+                end
+            end)
+        else
+            -- Disconnect freeze
+            if lockConnection then
+                lockConnection:Disconnect()
+                lockConnection = nil
+            end
+            lockedPosition = nil
+        end
+    end
 
     local TitleHolder = New("Frame", {
         BackgroundTransparency = 1,
