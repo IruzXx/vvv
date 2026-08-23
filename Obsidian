@@ -2787,9 +2787,9 @@ function Library:CreateArrayList(Config)
         elseif Position == "TopLeft" then
             return UDim2.new(0, OffsetX, 0, OffsetY)
         elseif Position == "BottomRight" then
-            return UDim2.new(1, -(Width + OffsetX), 1, -OffsetY)
+            return UDim2.new(1, -(Width + OffsetX), 1, -(OffsetY + 10))
         elseif Position == "BottomLeft" then
-            return UDim2.new(0, OffsetX, 1, -OffsetY)
+            return UDim2.new(0, OffsetX, 1, -(OffsetY + 10))
         else
             return UDim2.new(1, -(Width + OffsetX), 0, OffsetY) -- default TopRight
         end
@@ -2816,19 +2816,23 @@ function Library:CreateArrayList(Config)
             ArrayList.ScreenGui:Destroy()
         end
         
-        ArrayList.ScreenGui = New("ScreenGui", {
-            Name = "ObsidianArrayList",
-            IgnoreGuiInset = true,
-            DisplayOrder = 1000,
-            ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-            Parent = ScreenGui.Parent,
-        })
+        -- Calculate proper size based on position
+        local frameSize
+        if Position == "BottomRight" or Position == "BottomLeft" then
+            frameSize = UDim2.new(0, Width, 0, 500) -- Fixed height for bottom positions
+        else
+            frameSize = UDim2.new(0, Width, 1, -(OffsetY * 2))
+        end
         
+        -- Use existing Library ScreenGui instead of creating new one
         ArrayList.ListFrame = New("Frame", {
-            Size = UDim2.new(0, Width, 1, 0),
+            Name = "ObsidianArrayList",
+            Size = frameSize,
             Position = GetPositionUDim2(),
             BackgroundTransparency = 1,
-            Parent = ArrayList.ScreenGui,
+            ZIndex = 1000,
+            ClipsDescendants = false,
+            Parent = ScreenGui, -- Use Library's ScreenGui
         })
         
         local layout = New("UIListLayout", {
@@ -2839,7 +2843,9 @@ function Library:CreateArrayList(Config)
             Parent = ArrayList.ListFrame,
         })
         
-        Library:GiveSignal(ArrayList.ScreenGui.Destroying:Connect(function()
+        ArrayList.ScreenGui = ArrayList.ListFrame -- Reference for compatibility
+        
+        Library:GiveSignal(ArrayList.ListFrame.Destroying:Connect(function()
             ArrayList:Stop()
         end))
     end
@@ -2953,23 +2959,24 @@ function Library:CreateArrayList(Config)
             ArrayList.UpdateConnection:Disconnect()
             ArrayList.UpdateConnection = nil
         end
-        if ArrayList.ScreenGui then
-            ArrayList.ScreenGui:Destroy()
-            ArrayList.ScreenGui = nil
+        if ArrayList.ListFrame then
+            ArrayList.ListFrame:Destroy()
+            ArrayList.ListFrame = nil
         end
+        ArrayList.ScreenGui = nil
     end
     
     function ArrayList:SetPosition(NewPosition)
         ArrayList.Position = NewPosition
         Position = NewPosition
-        if ArrayList.ListFrame then
-            ArrayList.ListFrame.Position = GetPositionUDim2()
-            local layout = ArrayList.ListFrame:FindFirstChildOfClass("UIListLayout")
-            if layout then
-                layout.HorizontalAlignment = GetHorizontalAlignment()
-                layout.VerticalAlignment = GetVerticalAlignment()
+        
+        if ArrayList.Enabled then
+            -- Recreate UI with new position
+            local wasEnabled = ArrayList.Enabled
+            ArrayList:Stop()
+            if wasEnabled then
+                ArrayList:Start()
             end
-            UpdateList()
         end
     end
     
@@ -2986,8 +2993,8 @@ function Library:CreateArrayList(Config)
     end
     
     function ArrayList:SetVisible(Visible)
-        if ArrayList.ScreenGui then
-            ArrayList.ScreenGui.Enabled = Visible
+        if ArrayList.ListFrame then
+            ArrayList.ListFrame.Visible = Visible
         end
     end
     
