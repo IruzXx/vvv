@@ -2748,6 +2748,256 @@ function Library:AddDraggableMenu(Name: string)
     return Holder, Container
 end
 
+-- ========================================================================== --
+--                           ARRAYLIST DISPLAY MODULE                         --
+-- ========================================================================== --
+
+function Library:CreateArrayList(Config)
+    Config = Config or {}
+    
+    local Position = Config.Position or "TopRight" -- TopRight, TopLeft, BottomRight, BottomLeft
+    local Width = Config.Width or 200
+    local FontSize = Config.FontSize or 14
+    local Font = Config.Font or Enum.Font.Code
+    local RainbowSpeed = Config.RainbowSpeed or 0.1
+    local RainbowSaturation = Config.RainbowSaturation or 0.6
+    local RainbowBrightness = Config.RainbowBrightness or 1
+    local TextColor = Config.TextColor or Color3.fromRGB(255, 255, 255)
+    local ShowColorLine = Config.ShowColorLine ~= false -- default true
+    local ColorLineWidth = Config.ColorLineWidth or 2
+    local ItemSpacing = Config.ItemSpacing or 2
+    local OffsetX = Config.OffsetX or 10
+    local OffsetY = Config.OffsetY or 10
+    local LowercaseText = Config.LowercaseText ~= false -- default true
+    local SortByLength = Config.SortByLength ~= false -- default true
+    local TextStroke = Config.TextStroke ~= false -- default true
+    
+    local ArrayList = {
+        Enabled = false,
+        ScreenGui = nil,
+        ListFrame = nil,
+        UpdateConnection = nil,
+        Position = Position,
+        Items = {},
+    }
+    
+    local function GetPositionUDim2()
+        if Position == "TopRight" then
+            return UDim2.new(1, -(Width + OffsetX), 0, OffsetY)
+        elseif Position == "TopLeft" then
+            return UDim2.new(0, OffsetX, 0, OffsetY)
+        elseif Position == "BottomRight" then
+            return UDim2.new(1, -(Width + OffsetX), 1, -OffsetY)
+        elseif Position == "BottomLeft" then
+            return UDim2.new(0, OffsetX, 1, -OffsetY)
+        else
+            return UDim2.new(1, -(Width + OffsetX), 0, OffsetY) -- default TopRight
+        end
+    end
+    
+    local function GetHorizontalAlignment()
+        if Position == "TopRight" or Position == "BottomRight" then
+            return Enum.HorizontalAlignment.Right
+        else
+            return Enum.HorizontalAlignment.Left
+        end
+    end
+    
+    local function GetVerticalAlignment()
+        if Position == "BottomRight" or Position == "BottomLeft" then
+            return Enum.VerticalAlignment.Bottom
+        else
+            return Enum.VerticalAlignment.Top
+        end
+    end
+    
+    local function CreateUI()
+        if ArrayList.ScreenGui then
+            ArrayList.ScreenGui:Destroy()
+        end
+        
+        ArrayList.ScreenGui = New("ScreenGui", {
+            Name = "ObsidianArrayList",
+            IgnoreGuiInset = true,
+            DisplayOrder = 1000,
+            ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+            Parent = ScreenGui.Parent,
+        })
+        
+        ArrayList.ListFrame = New("Frame", {
+            Size = UDim2.new(0, Width, 1, 0),
+            Position = GetPositionUDim2(),
+            BackgroundTransparency = 1,
+            Parent = ArrayList.ScreenGui,
+        })
+        
+        local layout = New("UIListLayout", {
+            SortOrder = Enum.SortOrder.LayoutOrder,
+            HorizontalAlignment = GetHorizontalAlignment(),
+            VerticalAlignment = GetVerticalAlignment(),
+            Padding = UDim.new(0, ItemSpacing),
+            Parent = ArrayList.ListFrame,
+        })
+        
+        Library:GiveSignal(ArrayList.ScreenGui.Destroying:Connect(function()
+            ArrayList:Stop()
+        end))
+    end
+    
+    local function UpdateList()
+        if not ArrayList.Enabled or not ArrayList.ListFrame then
+            return
+        end
+        
+        local activeFeatures = {}
+        
+        -- Collect active toggles
+        if Library.Toggles then
+            for toggleIdx, toggle in pairs(Library.Toggles) do
+                if toggle.Value and toggle.Text and type(toggle.Text) == "string" then
+                    -- Filter out internal UI toggles
+                    if toggleIdx ~= "KeybindMenuOpen" 
+                        and toggleIdx ~= "ShowCustomCursor" 
+                        and toggleIdx ~= "EnableNotifications" 
+                        and toggleIdx ~= "ShowArrayList"
+                        and toggleIdx ~= "AlwaysOnTop"
+                        and toggleIdx ~= "WindowGlow"
+                        and toggleIdx ~= "AnimationsEnabled" then
+                        table.insert(activeFeatures, {
+                            name = toggle.Text,
+                            idx = toggleIdx
+                        })
+                    end
+                end
+            end
+        end
+        
+        -- Sort by length if enabled
+        if SortByLength then
+            table.sort(activeFeatures, function(a, b)
+                return string.len(a.name) > string.len(b.name)
+            end)
+        else
+            table.sort(activeFeatures, function(a, b)
+                return a.name < b.name
+            end)
+        end
+        
+        -- Clear old items
+        for _, child in ipairs(ArrayList.ListFrame:GetChildren()) do
+            if child:IsA("Frame") then
+                child:Destroy()
+            end
+        end
+        
+        -- Create new items
+        for i, feature in ipairs(activeFeatures) do
+            local rowFrame = New("Frame", {
+                Size = UDim2.new(1, 0, 0, FontSize + 4),
+                BackgroundTransparency = 1,
+                LayoutOrder = i,
+                Parent = ArrayList.ListFrame,
+            })
+            
+            local displayText = LowercaseText and string.lower(feature.name) or feature.name
+            
+            local textLabel = New("TextLabel", {
+                Size = UDim2.new(1, ShowColorLine and -(ColorLineWidth + 6) or -6, 1, 0),
+                BackgroundTransparency = 1,
+                Text = displayText,
+                TextColor3 = TextColor,
+                Font = Font,
+                TextSize = FontSize,
+                TextXAlignment = GetHorizontalAlignment() == Enum.HorizontalAlignment.Right 
+                    and Enum.TextXAlignment.Right 
+                    or Enum.TextXAlignment.Left,
+                TextStrokeTransparency = TextStroke and 0.5 or 1,
+                Parent = rowFrame,
+            })
+            
+            if ShowColorLine then
+                local colorLine = New("Frame", {
+                    Size = UDim2.new(0, ColorLineWidth, 1, 0),
+                    Position = GetHorizontalAlignment() == Enum.HorizontalAlignment.Right 
+                        and UDim2.new(1, -ColorLineWidth, 0, 0)
+                        or UDim2.new(0, 0, 0, 0),
+                    BorderSizePixel = 0,
+                    Parent = rowFrame,
+                })
+                
+                -- Rainbow animation
+                task.spawn(function()
+                    while colorLine and colorLine.Parent do
+                        local hue = (tick() * RainbowSpeed + (i * 0.05)) % 1
+                        colorLine.BackgroundColor3 = Color3.fromHSV(hue, RainbowSaturation, RainbowBrightness)
+                        task.wait(0.03) -- ~30 FPS for smooth rainbow
+                    end
+                end)
+            end
+        end
+    end
+    
+    function ArrayList:Start()
+        if ArrayList.Enabled then
+            return
+        end
+        ArrayList.Enabled = true
+        CreateUI()
+        ArrayList.UpdateConnection = game:GetService("RunService").RenderStepped:Connect(UpdateList)
+        Library:GiveSignal(ArrayList.UpdateConnection)
+    end
+    
+    function ArrayList:Stop()
+        ArrayList.Enabled = false
+        if ArrayList.UpdateConnection then
+            ArrayList.UpdateConnection:Disconnect()
+            ArrayList.UpdateConnection = nil
+        end
+        if ArrayList.ScreenGui then
+            ArrayList.ScreenGui:Destroy()
+            ArrayList.ScreenGui = nil
+        end
+    end
+    
+    function ArrayList:SetPosition(NewPosition)
+        ArrayList.Position = NewPosition
+        Position = NewPosition
+        if ArrayList.ListFrame then
+            ArrayList.ListFrame.Position = GetPositionUDim2()
+            local layout = ArrayList.ListFrame:FindFirstChildOfClass("UIListLayout")
+            if layout then
+                layout.HorizontalAlignment = GetHorizontalAlignment()
+                layout.VerticalAlignment = GetVerticalAlignment()
+            end
+            UpdateList()
+        end
+    end
+    
+    function ArrayList:Toggle(State)
+        if State == nil then
+            State = not ArrayList.Enabled
+        end
+        
+        if State then
+            ArrayList:Start()
+        else
+            ArrayList:Stop()
+        end
+    end
+    
+    function ArrayList:SetVisible(Visible)
+        if ArrayList.ScreenGui then
+            ArrayList.ScreenGui.Enabled = Visible
+        end
+    end
+    
+    Library:OnUnload(function()
+        ArrayList:Stop()
+    end)
+    
+    return ArrayList
+end
+
 function Library:AddDraggableImageButton(...)
     local Params = select(1, ...)
 
