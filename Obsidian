@@ -2436,7 +2436,7 @@ function Library:AddDraggableLabel(...)
         BackgroundColor3 = "BackgroundColor",
         Size = UDim2.fromOffset(0, 0),
         Position = UDim2.fromOffset(6, 6),
-        Text = Text,
+        Text = tostring(Text or ""),
         TextSize = 15,
         ZIndex = 10,
         Parent = ScreenGui,
@@ -2641,7 +2641,7 @@ function Library:AddDraggableButton(...)
     end
 
     Library:MakeDraggable(Button, Button, true)
-    DraggableButton:SetText(Text)
+    DraggableButton:SetText(tostring(Text or ""))
     DraggableButton.Button = Button
 
     if not table.find(Library.DraggableElements, Button) then
@@ -2673,6 +2673,10 @@ function Library:AddDraggableButton(...)
 end
 
 function Library:AddDraggableMenu(Name: string)
+    if type(Name) ~= "string" then
+        Name = tostring(Name or "Draggable Menu")
+    end
+    
     local Holder = New("Frame", {
         AutomaticSize = Enum.AutomaticSize.XY,
         BackgroundColor3 = "BackgroundColor",
