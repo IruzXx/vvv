@@ -14215,24 +14215,6 @@ function Library:CreateWindow(WindowInfo)
                     ClipsDescendants = true,
                 })
 
-                if Library.AddGroupboxAnimation then
-                    local AnimLine = New("Frame", {
-                        BackgroundColor3 = "AccentColor",
-                        BackgroundTransparency = 0.2,
-                        Size = UDim2.new(0, 50, 0, 2),
-                        Position = UDim2.new(0, -50, 0, 0),
-                        ZIndex = 5,
-                        Parent = GroupboxHolder,
-                    })
-                    task.spawn(function()
-                        while GroupboxHolder and GroupboxHolder.Parent do
-                            AnimLine.Position = UDim2.new(0, -50, 0, 0)
-                            TweenService:Create(AnimLine, TweenInfo.new(2, Enum.EasingStyle.Linear), {Position = UDim2.new(1, 50, 0, 0)}):Play()
-                            task.wait(3)
-                        end
-                    end)
-                end
-
                 table.insert(
                     Library.Corners,
                     New("UICorner", {
@@ -14327,6 +14309,7 @@ function Library:CreateWindow(WindowInfo)
                 Name = Info.Name,
 
                 Connections = {},
+                AnimThreads = {},
                 Destroyed = false,
 
                 Visible = true,
@@ -14420,6 +14403,13 @@ function Library:CreateWindow(WindowInfo)
 
             function Groupbox:Destroy()
                 Groupbox.Destroyed = true
+
+                -- Cleanup animation threads
+                if Groupbox.AnimThreads then
+                    for _, thread in Groupbox.AnimThreads do
+                        task.cancel(thread)
+                    end
+                end
 
                 if ResizeTween then
                     StopTween(ResizeTween, true)
@@ -14516,6 +14506,41 @@ function Library:CreateWindow(WindowInfo)
 
             if Info.DisableCollapsing ~= true and Info.Collapsed == true then
                 Groupbox:SetCollapsed(true)
+            end
+
+            -- Add animated line after Groupbox is created
+            if Library.AddGroupboxAnimation then
+                local AnimLine = New("Frame", {
+                    BackgroundColor3 = "AccentColor",
+                    BackgroundTransparency = 0,
+                    BorderSizePixel = 0,
+                    Size = UDim2.new(0, 60, 0, 2),
+                    Position = UDim2.new(0, -60, 0, 33),
+                    ZIndex = 10,
+                    Parent = GroupboxHolder,
+                })
+                New("UICorner", {
+                    CornerRadius = UDim.new(1, 0),
+                    Parent = AnimLine,
+                })
+                Library:AddToRegistry(AnimLine, { BackgroundColor3 = "AccentColor" })
+                
+                local animThread = task.spawn(function()
+                    while GroupboxHolder and GroupboxHolder.Parent and not Groupbox.Destroyed do
+                        AnimLine.Position = UDim2.new(0, -60, 0, 33)
+                        AnimLine.Visible = true
+                        local tween = TweenService:Create(
+                            AnimLine, 
+                            TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), 
+                            {Position = UDim2.new(1, 20, 0, 33)}
+                        )
+                        tween:Play()
+                        tween.Completed:Wait()
+                        task.wait(0.3)
+                    end
+                end)
+                
+                table.insert(Groupbox.AnimThreads, animThread)
             end
 
             return Groupbox
