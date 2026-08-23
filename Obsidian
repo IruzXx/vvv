@@ -2041,6 +2041,7 @@ function Library:MakeDraggable(UI: GuiObject, DragFrame: GuiObject, IgnoreToggle
         if
             (not IgnoreToggled and not Library.Toggled)
             or (IsMainWindow and Library.CantDragForced)
+            or (IsMainWindow and Library.WindowLocked)
             or not (ScreenGui and ScreenGui.Parent)
         then
             Dragging = false
