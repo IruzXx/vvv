@@ -2447,12 +2447,7 @@ function Library:AddRunningLineBorder(Parent, Config)
             ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 255, 255)),
             ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255)),
         }),
-        Transparency = NumberSequence.new({
-            NumberSequenceKeypoint.new(0, 0.7),    -- Semi-transparent
-            NumberSequenceKeypoint.new(0.3, 0),    -- Fully visible
-            NumberSequenceKeypoint.new(0.7, 0),    -- Fully visible
-            NumberSequenceKeypoint.new(1, 0.7),    -- Semi-transparent
-        }),
+        Transparency = NumberSequence.new(0), -- Uniform transparency for consistent color
         Offset = Vector2.new(0, 0), -- Start position
         Rotation = 0, -- Horizontal gradient
         Parent = line,
