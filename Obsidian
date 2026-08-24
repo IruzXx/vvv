@@ -2410,29 +2410,30 @@ function Library:AddRunningLineBorder(Parent, Config)
     Config = Config or {}
     
     local LineColor = Config.Color or "AccentColor" -- Default to theme
-    local LineHeight = Config.Height or 3 -- Tinggi garis (thickness)
-    local AnimationSpeed = Config.Speed or 2.0 -- Durasi animasi
+    local LineHeight = Config.Height or 2 -- Tinggi garis (thickness)
+    local LineLength = Config.Length or 80 -- Panjang segment garis
+    local AnimationSpeed = Config.Speed or 1.5 -- Durasi animasi
     local Enabled = Config.Enabled ~= false
     
     if not Enabled then return nil end
     
-    local RunService = game:GetService("RunService")
+    local TweenService = game:GetService("TweenService")
     
-    -- Create full-width line at bottom with inset untuk respect corner radius
+    -- Create container at bottom, clipped to parent size
     local lineContainer = New("Frame", {
-        Size = UDim2.new(1, -8, 0, LineHeight), -- Inset 4px dari kiri-kanan (total 8px)
-        Position = UDim2.new(0, 4, 1, -LineHeight - 4), -- Offset 4px dari edge
+        Size = UDim2.new(1, -6, 0, LineHeight), -- Full width minus padding
+        Position = UDim2.new(0, 3, 1, -LineHeight - 3), -- Bottom edge with inset
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
         ZIndex = Parent.ZIndex + 10,
-        ClipsDescendants = true, -- Important for the sliding effect
+        ClipsDescendants = true, -- Clip anything outside
         Parent = Parent,
     })
     
-    -- Create the animated gradient line (full width but positioned off-screen)
+    -- Create the animated line segment
     local line = New("Frame", {
-        Size = UDim2.new(2, 0, 1, 0), -- 2x width untuk smooth loop
-        Position = UDim2.new(-1, 0, 0, 0), -- Start off-screen left
+        Size = UDim2.new(0, LineLength, 0, LineHeight),
+        Position = UDim2.new(0, -LineLength, 0, 0), -- Start off-screen left
         BackgroundTransparency = 0,
         BorderSizePixel = 0,
         ZIndex = Parent.ZIndex + 11,
@@ -2450,52 +2451,56 @@ function Library:AddRunningLineBorder(Parent, Config)
         Library:AddToRegistry(line, { BackgroundColor3 = "AccentColor" })
     end
     
-    -- Add gradient effect for smooth appearance
+    -- Add gradient for smooth fade
     local gradient = New("UIGradient", {
-        Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 255, 255)),
-            ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255)),
-        }),
         Transparency = NumberSequence.new({
-            NumberSequenceKeypoint.new(0, 1),      -- Transparent at start
-            NumberSequenceKeypoint.new(0.2, 0),    -- Fully visible
-            NumberSequenceKeypoint.new(0.8, 0),    -- Fully visible
-            NumberSequenceKeypoint.new(1, 1),      -- Transparent at end
+            NumberSequenceKeypoint.new(0, 1),      -- Fade in
+            NumberSequenceKeypoint.new(0.1, 0),    -- Solid
+            NumberSequenceKeypoint.new(0.9, 0),    -- Solid
+            NumberSequenceKeypoint.new(1, 1),      -- Fade out
         }),
         Parent = line,
     })
     
-    -- Continuous animation using RenderStepped for smooth movement
-    local animating = true
-    local offset = 0
+    -- Rounded corners
+    local corner = New("UICorner", {
+        CornerRadius = UDim.new(1, 0), -- Fully rounded
+        Parent = line,
+    })
     
-    local connection = RunService.RenderStepped:Connect(function(dt)
-        if not animating then return end
-        
-        -- Calculate smooth movement
-        offset = offset + (dt / AnimationSpeed)
-        if offset >= 1 then
-            offset = 0 -- Reset for loop
+    -- Animation loop
+    local animating = true
+    local function animateLine()
+        while animating and line and line.Parent do
+            -- Reset position
+            line.Position = UDim2.new(0, -LineLength, 0, 0)
+            
+            -- Tween to right side (off-screen)
+            local endPos = UDim2.new(1, 0, 0, 0)
+            local tween = TweenService:Create(
+                line,
+                TweenInfo.new(AnimationSpeed, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut),
+                { Position = endPos }
+            )
+            tween:Play()
+            tween.Completed:Wait()
+            
+            task.wait(0.3) -- Small delay before loop
         end
-        
-        -- Update position (-1 to 0 for smooth right movement)
-        line.Position = UDim2.new(-1 + offset, 0, 0, 0)
-    end)
+    end
+    
+    task.spawn(animateLine)
     
     -- Return controller
     local Controller = {
         Stop = function()
             animating = false
-            if connection then
-                connection:Disconnect()
-            end
             if lineContainer then
                 lineContainer:Destroy()
             end
         end,
         SetColor = function(Color)
-            if typeof(Color) == "Color3" then
+            if typeof(Color) == "Color3" and line then
                 line.BackgroundColor3 = Color
             end
         end,
@@ -2506,9 +2511,6 @@ function Library:AddRunningLineBorder(Parent, Config)
     
     Library:GiveSignal(lineContainer.Destroying:Connect(function()
         animating = false
-        if connection then
-            connection:Disconnect()
-        end
     end))
     
     return Controller
