@@ -2419,10 +2419,10 @@ function Library:AddRunningLineBorder(Parent, Config)
     
     local RunService = game:GetService("RunService")
     
-    -- Create FULL-WIDTH line at bottom (di luar text padding area)
+    -- Create FULL-WIDTH line at bottom (di luar text padding + outline area)
     local line = New("Frame", {
         Size = UDim2.new(1, -8, 0, LineHeight), -- Full width minus inset
-        Position = UDim2.new(0, 4, 1, -LineHeight - 1), -- Stick to very bottom edge
+        Position = UDim2.new(0, 4, 1, -LineHeight - 2), -- Extra offset untuk avoid overlap
         BackgroundTransparency = 0,
         BorderSizePixel = 0,
         ZIndex = Parent.ZIndex + 10,
