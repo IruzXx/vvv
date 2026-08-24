@@ -2425,7 +2425,7 @@ function Library:AddRunningLineBorder(Parent, Config)
         Position = UDim2.new(0, 4, 1, -LineHeight - 2), -- Extra offset untuk avoid overlap
         BackgroundTransparency = 0,
         BorderSizePixel = 0,
-        ZIndex = Parent.ZIndex + 10,
+        ZIndex = Parent.ZIndex - 1, -- Below the parent text to avoid covering it
         Parent = Parent,
     })
     
