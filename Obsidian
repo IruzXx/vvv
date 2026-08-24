@@ -2421,11 +2421,11 @@ function Library:AddRunningLineBorder(Parent, Config)
     
     -- Create FULL-WIDTH line at bottom (di luar text padding + outline area)
     local line = New("Frame", {
-        Size = UDim2.new(1, 0, 0, LineHeight), -- Full width minus inset
-        Position = UDim2.new(0, 0, 1, -LineHeight), -- Extra offset untuk avoid overlap
+        Size = UDim2.new(1, -4, 0, LineHeight), -- Full width minus inset
+        Position = UDim2.new(0, 2, 1, -LineHeight - 2), -- Extra offset untuk avoid overlap
         BackgroundTransparency = 0,
         BorderSizePixel = 0,
-        ZIndex = 5, -- Below the parent text to avoid covering it
+        ZIndex = 100, -- Below the parent text to avoid covering it
         Parent = Parent,
     })
     
@@ -10091,7 +10091,7 @@ function Library:Notify(...)
         BackgroundColor3 = "MainColor",
         Position = Library.NotifySide:lower() == "left" and UDim2.new(-1, -8, 0, -2) or UDim2.new(1, 8, 0, -2),
         Size = UDim2.fromScale(1, 1),
-        ZIndex = 5,
+        ZIndex = 100,
         Parent = FakeBackground,
     })
     table.insert(
@@ -12302,7 +12302,7 @@ function Library:CreateWindow(WindowInfo)
                 Position = UDim2.new(1, 2, 0, 0),
                 Size = UDim2.fromOffset(14, 14),
                 Visible = false,
-                ZIndex = 5,
+                ZIndex = 100,
                 Parent = MiniFeatures,
             })
             New("UICorner", { CornerRadius = UDim.new(1, 0), Parent = MiniFeaturesBadgeHolder })
@@ -12331,7 +12331,7 @@ function Library:CreateWindow(WindowInfo)
                 Position = UDim2.new(1, 2, 0, 0),
                 Size = UDim2.fromOffset(14, 14),
                 Visible = false,
-                ZIndex = 5,
+                ZIndex = 100,
                 Parent = MiniBell,
             })
             New("UICorner", { CornerRadius = UDim.new(1, 0), Parent = MiniBadgeHolder })
@@ -12489,7 +12489,7 @@ function Library:CreateWindow(WindowInfo)
                 Position = UDim2.new(1, 2, 0, -2),
                 Size = UDim2.fromOffset(14, 14),
                 Visible = false,
-                ZIndex = 5,
+                ZIndex = 100,
                 Parent = BellButton,
             })
             New("UICorner", { CornerRadius = UDim.new(1, 0), Parent = BadgeHolder })
@@ -12572,7 +12572,7 @@ function Library:CreateWindow(WindowInfo)
                 Position = UDim2.new(1, 2, 0, -2),
                 Size = UDim2.fromOffset(14, 14),
                 Visible = false,
-                ZIndex = 5,
+                ZIndex = 100,
                 Parent = FeaturesButton,
             })
             New("UICorner", { CornerRadius = UDim.new(1, 0), Parent = FeaturesBadgeHolder })
@@ -14599,7 +14599,7 @@ function Library:CreateWindow(WindowInfo)
                         BackgroundTransparency = 0.2,
                         Size = UDim2.new(0, 50, 0, 2),
                         Position = UDim2.new(0, -50, 0, 0),
-                        ZIndex = 5,
+                        ZIndex = 100,
                         Parent = GroupboxHolder,
                     })
                     task.spawn(function()
