@@ -2402,6 +2402,106 @@ function Library:MakeOutline(Frame: GuiObject, Corner: number?, ZIndex: number?)
     return Holder, Outline
 end
 
+-- ========================================================================== --
+--                      RUNNING LINE BORDER ANIMATION                         --
+-- ========================================================================== --
+
+function Library:AddRunningLineBorder(Parent, Config)
+    Config = Config or {}
+    
+    local LineColor = Config.Color or "AccentColor" -- Default to theme
+    local LineWidth = Config.Width or 2
+    local LineLength = Config.Length or 60
+    local AnimationSpeed = Config.Speed or 1.2
+    local AnimationDelay = Config.Delay or 0.3
+    local Enabled = Config.Enabled ~= false
+    
+    if not Enabled then return nil end
+    
+    local TweenService = game:GetService("TweenService")
+    
+    -- Create line holder at bottom
+    local lineHolder = New("Frame", {
+        Size = UDim2.new(1, -4, 0, 0),
+        Position = UDim2.new(0, 2, 1, -LineWidth - 2),
+        BackgroundTransparency = 1,
+        ZIndex = Parent.ZIndex + 10,
+        Parent = Parent,
+    })
+    
+    -- Create animated line
+    local line = New("Frame", {
+        Size = UDim2.new(0, LineLength, 0, LineWidth),
+        Position = UDim2.new(0, -LineLength, 0, 0),
+        BorderSizePixel = 0,
+        ZIndex = Parent.ZIndex + 11,
+        Parent = lineHolder,
+    })
+    
+    -- Set color (theme or custom)
+    if type(LineColor) == "string" and LineColor == "AccentColor" then
+        line.BackgroundColor3 = Library.Scheme.AccentColor
+        Library:AddToRegistry(line, { BackgroundColor3 = "AccentColor" })
+    elseif typeof(LineColor) == "Color3" then
+        line.BackgroundColor3 = LineColor
+    else
+        line.BackgroundColor3 = Library.Scheme.AccentColor
+        Library:AddToRegistry(line, { BackgroundColor3 = "AccentColor" })
+    end
+    
+    -- Rounded corners
+    local corner = New("UICorner", {
+        CornerRadius = UDim.new(1, 0),
+        Parent = line,
+    })
+    
+    -- Animation function
+    local animating = true
+    local function runLine()
+        if not animating then return end
+        line.Position = UDim2.new(0, -LineLength, 0, 0)
+        local tween = TweenService:Create(
+            line,
+            TweenInfo.new(AnimationSpeed, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
+            { Position = UDim2.new(1, 0, 0, 0) }
+        )
+        tween:Play()
+        tween.Completed:Wait()
+    end
+    
+    -- Start animation loop
+    task.spawn(function()
+        while animating and lineHolder and lineHolder.Parent do
+            runLine()
+            task.wait(AnimationDelay)
+        end
+    end)
+    
+    -- Return controller
+    local Controller = {
+        Stop = function()
+            animating = false
+            if lineHolder then
+                lineHolder:Destroy()
+            end
+        end,
+        SetColor = function(Color)
+            if typeof(Color) == "Color3" then
+                line.BackgroundColor3 = Color
+            end
+        end,
+        SetSpeed = function(Speed)
+            AnimationSpeed = Speed
+        end,
+    }
+    
+    Library:GiveSignal(lineHolder.Destroying:Connect(function()
+        animating = false
+    end))
+    
+    return Controller
+end
+
 function Library:AddDraggableLabel(...)
     local Params = select(1, ...)
     local Text
@@ -2530,6 +2630,12 @@ function Library:AddDraggableLabel(...)
     end
 
     PositionDraggable(Label, Label.Position)
+    
+    -- Add running line border (default: AccentColor, theme-synced)
+    DraggableLabel.RunningLine = Library:AddRunningLineBorder(Label, {
+        Color = "AccentColor",
+        Enabled = true,
+    })
 
     function DraggableLabel:Destroy()
         DraggableLabel.Destroyed = true
@@ -2649,6 +2755,12 @@ function Library:AddDraggableButton(...)
     end
 
     PositionDraggable(Button, Button.Position)
+    
+    -- Add running line border (default: AccentColor, theme-synced)
+    DraggableButton.RunningLine = Library:AddRunningLineBorder(Button, {
+        Color = "AccentColor",
+        Enabled = true,
+    })
 
     function DraggableButton:Destroy()
         DraggableButton.Destroyed = true
@@ -2744,6 +2856,12 @@ function Library:AddDraggableMenu(Name: string)
     end
 
     PositionDraggable(Holder, Holder.Position)
+    
+    -- Add running line border (default: AccentColor, theme-synced)
+    local MenuRunningLine = Library:AddRunningLineBorder(Holder, {
+        Color = "AccentColor",
+        Enabled = true,
+    })
 
     return Holder, Container
 end
