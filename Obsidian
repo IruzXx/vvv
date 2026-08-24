@@ -2785,28 +2785,16 @@ function Library:CreateArrayList(Config)
             return UDim2.new(1, -(Width + OffsetX), 0, OffsetY)
         elseif Position == "TopLeft" then
             return UDim2.new(0, OffsetX, 0, OffsetY)
-        elseif Position == "BottomRight" then
-            return UDim2.new(1, -(Width + OffsetX), 1, -(OffsetY + 10))
-        elseif Position == "BottomLeft" then
-            return UDim2.new(0, OffsetX, 1, -(OffsetY + 10))
         else
             return UDim2.new(1, -(Width + OffsetX), 0, OffsetY) -- default TopRight
         end
     end
     
     local function GetHorizontalAlignment()
-        if Position == "TopRight" or Position == "BottomRight" then
+        if Position == "TopRight" then
             return Enum.HorizontalAlignment.Right
         else
             return Enum.HorizontalAlignment.Left
-        end
-    end
-    
-    local function GetVerticalAlignment()
-        if Position == "BottomRight" or Position == "BottomLeft" then
-            return Enum.VerticalAlignment.Bottom
-        else
-            return Enum.VerticalAlignment.Top
         end
     end
     
@@ -2816,13 +2804,8 @@ function Library:CreateArrayList(Config)
             ArrayList.ListFrame = nil
         end
         
-        -- Calculate proper size based on position
-        local frameSize
-        if Position == "BottomRight" or Position == "BottomLeft" then
-            frameSize = UDim2.new(0, Width, 0, 500) -- Fixed height for bottom positions
-        else
-            frameSize = UDim2.new(0, Width, 1, -(OffsetY * 2))
-        end
+        -- Simple size for top positions only
+        local frameSize = UDim2.new(0, Width, 1, -(OffsetY * 2))
         
         -- Create Frame directly in Library's ScreenGui
         ArrayList.ListFrame = New("Frame", {
@@ -2831,13 +2814,13 @@ function Library:CreateArrayList(Config)
             BackgroundTransparency = 1,
             ZIndex = 1000,
             ClipsDescendants = false,
-            Parent = ScreenGui, -- Direct parent to Library ScreenGui
+            Parent = ScreenGui,
         })
         
         local layout = New("UIListLayout", {
             SortOrder = Enum.SortOrder.LayoutOrder,
             HorizontalAlignment = GetHorizontalAlignment(),
-            VerticalAlignment = GetVerticalAlignment(),
+            VerticalAlignment = Enum.VerticalAlignment.Top,
             Padding = UDim.new(0, ItemSpacing),
             Parent = ArrayList.ListFrame,
         })
@@ -2970,27 +2953,25 @@ function Library:CreateArrayList(Config)
     
     function ArrayList:SetPosition(NewPosition)
         if ArrayList.Position == NewPosition then
-            return -- Prevent unnecessary recreation
+            return
+        end
+        
+        -- Only accept TopRight or TopLeft
+        if NewPosition ~= "TopRight" and NewPosition ~= "TopLeft" then
+            NewPosition = "TopRight"
         end
         
         ArrayList.Position = NewPosition
         Position = NewPosition
         
         if ArrayList.Enabled and ArrayList.ListFrame then
-            -- Simply update position and layout without full recreation
             ArrayList.ListFrame.Position = GetPositionUDim2()
-            
-            -- Update size for bottom positions
-            if Position == "BottomRight" or Position == "BottomLeft" then
-                ArrayList.ListFrame.Size = UDim2.new(0, Width, 0, 500)
-            else
-                ArrayList.ListFrame.Size = UDim2.new(0, Width, 1, -(OffsetY * 2))
-            end
+            ArrayList.ListFrame.Size = UDim2.new(0, Width, 1, -(OffsetY * 2))
             
             local layout = ArrayList.ListFrame:FindFirstChildOfClass("UIListLayout")
             if layout then
                 layout.HorizontalAlignment = GetHorizontalAlignment()
-                layout.VerticalAlignment = GetVerticalAlignment()
+                layout.VerticalAlignment = Enum.VerticalAlignment.Top
             end
             
             UpdateList()
