@@ -2411,33 +2411,22 @@ function Library:AddRunningLineBorder(Parent, Config)
     
     local LineColor = Config.Color or "AccentColor" -- Default to theme
     local LineHeight = Config.Height or 2 -- Tinggi garis (thickness)
-    local LineLength = Config.Length or 80 -- Panjang segment garis
-    local AnimationSpeed = Config.Speed or 1.5 -- Durasi animasi
+    local AnimationSpeed = Config.Speed or 2.0 -- Durasi animasi gradient
+    local UseRainbow = Config.UseRainbow or false -- Rainbow effect
     local Enabled = Config.Enabled ~= false
     
     if not Enabled then return nil end
     
-    local TweenService = game:GetService("TweenService")
+    local RunService = game:GetService("RunService")
     
-    -- Create container at bottom, clipped to parent size
-    local lineContainer = New("Frame", {
-        Size = UDim2.new(1, -6, 0, LineHeight), -- Full width minus padding
-        Position = UDim2.new(0, 3, 1, -LineHeight - 3), -- Bottom edge with inset
-        BackgroundTransparency = 1,
-        BorderSizePixel = 0,
-        ZIndex = Parent.ZIndex + 10,
-        ClipsDescendants = true, -- Clip anything outside
-        Parent = Parent,
-    })
-    
-    -- Create the animated line segment
+    -- Create FULL-WIDTH line at bottom
     local line = New("Frame", {
-        Size = UDim2.new(0, LineLength, 0, LineHeight),
-        Position = UDim2.new(0, -LineLength, 0, 0), -- Start off-screen left
+        Size = UDim2.new(1, -6, 0, LineHeight), -- Full width minus padding
+        Position = UDim2.new(0, 3, 1, -LineHeight - 3), -- Bottom edge
         BackgroundTransparency = 0,
         BorderSizePixel = 0,
-        ZIndex = Parent.ZIndex + 11,
-        Parent = lineContainer,
+        ZIndex = Parent.ZIndex + 10,
+        Parent = Parent,
     })
     
     -- Set color (theme or custom)
@@ -2451,52 +2440,56 @@ function Library:AddRunningLineBorder(Parent, Config)
         Library:AddToRegistry(line, { BackgroundColor3 = "AccentColor" })
     end
     
-    -- Add gradient for smooth fade
+    -- Add animated gradient that moves horizontally
     local gradient = New("UIGradient", {
-        Transparency = NumberSequence.new({
-            NumberSequenceKeypoint.new(0, 1),      -- Fade in
-            NumberSequenceKeypoint.new(0.1, 0),    -- Solid
-            NumberSequenceKeypoint.new(0.9, 0),    -- Solid
-            NumberSequenceKeypoint.new(1, 1),      -- Fade out
+        Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 255, 255)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255)),
         }),
+        Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.7),    -- Semi-transparent
+            NumberSequenceKeypoint.new(0.3, 0),    -- Fully visible
+            NumberSequenceKeypoint.new(0.7, 0),    -- Fully visible
+            NumberSequenceKeypoint.new(1, 0.7),    -- Semi-transparent
+        }),
+        Offset = Vector2.new(0, 0), -- Start position
+        Rotation = 0, -- Horizontal gradient
         Parent = line,
     })
     
-    -- Rounded corners
-    local corner = New("UICorner", {
-        CornerRadius = UDim.new(1, 0), -- Fully rounded
-        Parent = line,
-    })
-    
-    -- Animation loop
+    -- Animate gradient offset for "running" effect
     local animating = true
-    local function animateLine()
-        while animating and line and line.Parent do
-            -- Reset position
-            line.Position = UDim2.new(0, -LineLength, 0, 0)
-            
-            -- Tween to right side (off-screen)
-            local endPos = UDim2.new(1, 0, 0, 0)
-            local tween = TweenService:Create(
-                line,
-                TweenInfo.new(AnimationSpeed, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut),
-                { Position = endPos }
-            )
-            tween:Play()
-            tween.Completed:Wait()
-            
-            task.wait(0.3) -- Small delay before loop
-        end
-    end
+    local offset = 0
     
-    task.spawn(animateLine)
+    local connection = RunService.RenderStepped:Connect(function(dt)
+        if not animating then return end
+        
+        -- Update offset for smooth movement
+        offset = offset + (dt / AnimationSpeed)
+        if offset >= 1 then
+            offset = 0 -- Loop
+        end
+        
+        -- Move gradient horizontally (creates running effect)
+        gradient.Offset = Vector2.new(offset * 2 - 1, 0) -- -1 to 1
+    end)
+    
+    -- Rounded corners for smooth edges
+    local corner = New("UICorner", {
+        CornerRadius = UDim.new(1, 0),
+        Parent = line,
+    })
     
     -- Return controller
     local Controller = {
         Stop = function()
             animating = false
-            if lineContainer then
-                lineContainer:Destroy()
+            if connection then
+                connection:Disconnect()
+            end
+            if line then
+                line:Destroy()
             end
         end,
         SetColor = function(Color)
@@ -2509,8 +2502,11 @@ function Library:AddRunningLineBorder(Parent, Config)
         end,
     }
     
-    Library:GiveSignal(lineContainer.Destroying:Connect(function()
+    Library:GiveSignal(line.Destroying:Connect(function()
         animating = false
+        if connection then
+            connection:Disconnect()
+        end
     end))
     
     return Controller
