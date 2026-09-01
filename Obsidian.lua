@@ -10233,7 +10233,10 @@ function Library:Notify(...)
         Data.Description = tostring(Info.Description)
         Data.DescriptionColor = Info.DescriptionColor
 
-        Data.Time = Info.Time or 5
+        -- Duration diterima sebagai alias Time: banyak pemakai menulis
+        -- Duration dan sebelumnya nilainya diabaikan diam-diam (selalu jatuh
+        -- ke default 5 detik).  Time tetap boleh berupa Instance.
+        Data.Time = Info.Time or Info.Duration or 5
         Data.SoundId = Info.SoundId
         Data.Steps = Info.Steps
         Data.Persist = Info.Persist
@@ -10513,6 +10516,12 @@ function Library:Notify(...)
     if typeof(Data.Time) == "Instance" then
         TimerFill.Size = UDim2.fromScale(0, 1)
     end
+    -- Notifikasi ber-Steps mulai dari 0: bar-nya di-drive oleh ChangeStep,
+    -- bukan countdown, jadi jangan mulai dalam keadaan penuh (yang membuat
+    -- ChangeStep pertama tampak melompat dari 100% ke 1/N).
+    if typeof(Data.Steps) == "number" then
+        TimerFill.Size = UDim2.fromScale(0, 1)
+    end
     if Data.SoundId then
         local SoundId = Data.SoundId
         if typeof(SoundId) == "number" then
@@ -10546,6 +10555,12 @@ function Library:Notify(...)
             repeat
                 task.wait()
             until DeletedInstance or Data.Destroyed
+        elseif typeof(Data.Steps) == "number" then
+            -- Bar milik ChangeStep: tween countdown menulis TimerFill.Size
+            -- setiap frame dan menimpa nilai step.  Tanpa tween, tapi tetap
+            -- auto-destroy setelah Data.Time sebagai safety timeout (pakai
+            -- Persist = true untuk menonaktifkannya).
+            task.wait(Data.Time)
         else
             TweenService
                 :Create(TimerFill, TweenInfo.new(Data.Time, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut), {
