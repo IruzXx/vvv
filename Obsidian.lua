@@ -3083,7 +3083,28 @@ function Library:CreateArrayList(Config)
         end))
     end
     
-    local function UpdateList()
+    -- State untuk rebuild-on-change + rainbow terpusat.
+    local LastSignature = nil
+    local ColorLines = {}
+    local ScanAccumulator = 0
+    local RainbowAccumulator = 0
+    
+    -- Satu loop rainbow untuk semua color line, menggantikan pola lama yang
+    -- men-task.spawn satu thread per baris pada SETIAP rebuild.
+    local function UpdateRainbow()
+        if not ShowColorLine then
+            return
+        end
+        
+        for Index, Line in ipairs(ColorLines) do
+            if Line and Line.Parent then
+                local hue = (tick() * RainbowSpeed + (Index * 0.05)) % 1
+                Line.BackgroundColor3 = Color3.fromHSV(hue, RainbowSaturation, RainbowBrightness)
+            end
+        end
+    end
+    
+    local function UpdateList(Force)
         if not ArrayList.Enabled or not ArrayList.ListFrame then
             return
         end
@@ -3121,6 +3142,20 @@ function Library:CreateArrayList(Config)
                 return a.name < b.name
             end)
         end
+        
+        -- Rebuild hanya saat daftar fiturnya benar-benar berubah: destroy +
+        -- create instance per frame hanyalah churn GC yang tidak perlu.
+        local SignatureParts = table.create(#activeFeatures)
+        for _, feature in ipairs(activeFeatures) do
+            table.insert(SignatureParts, feature.name)
+        end
+        local Signature = table.concat(SignatureParts, "\1")
+        if not Force and Signature == LastSignature then
+            return
+        end
+        LastSignature = Signature
+        
+        table.clear(ColorLines)
         
         -- Clear old items
         for _, child in ipairs(ArrayList.ListFrame:GetChildren()) do
@@ -3164,16 +3199,13 @@ function Library:CreateArrayList(Config)
                     Parent = rowFrame,
                 })
                 
-                -- Rainbow animation
-                task.spawn(function()
-                    while colorLine and colorLine.Parent do
-                        local hue = (tick() * RainbowSpeed + (i * 0.05)) % 1
-                        colorLine.BackgroundColor3 = Color3.fromHSV(hue, RainbowSaturation, RainbowBrightness)
-                        task.wait(0.03) -- ~30 FPS for smooth rainbow
-                    end
-                end)
+                -- Warna di-drive oleh loop rainbow terpusat (UpdateRainbow),
+                -- bukan task.spawn per baris per rebuild seperti sebelumnya.
+                table.insert(ColorLines, colorLine)
             end
         end
+        
+        UpdateRainbow()
     end
     
     function ArrayList:Start()
@@ -3181,9 +3213,29 @@ function Library:CreateArrayList(Config)
             return
         end
         ArrayList.Enabled = true
+        LastSignature = nil
         CreateUI()
-        ArrayList.UpdateConnection = game:GetService("RunService").RenderStepped:Connect(UpdateList)
-        Library:GiveSignal(ArrayList.UpdateConnection)
+        
+        -- Scan toggle di-throttle (10x/detik) dan hanya rebuild saat daftarnya
+        -- berubah; rainbow di-update ~30fps dari loop terpusat.  Koneksi tidak
+        -- didaftarkan ke Library:GiveSignal karena Start/Stop bisa dipanggil
+        -- berulang dan akan menumpuk koneksi mati di Library.Signals; cleanup
+        -- saat unload sudah ditangani Library:OnUnload di bawah.
+        ArrayList.UpdateConnection = game:GetService("RunService").RenderStepped:Connect(function(dt)
+            ScanAccumulator += dt
+            if ScanAccumulator >= 0.1 then
+                ScanAccumulator = 0
+                UpdateList()
+            end
+            
+            RainbowAccumulator += dt
+            if RainbowAccumulator >= 0.03 then
+                RainbowAccumulator = 0
+                UpdateRainbow()
+            end
+        end)
+        
+        UpdateList(true)
     end
     
     function ArrayList:Stop()
@@ -3223,7 +3275,9 @@ function Library:CreateArrayList(Config)
                 layout.VerticalAlignment = Enum.VerticalAlignment.Top
             end
             
-            UpdateList()
+            -- Force: alignment berubah, semua baris harus dibangun ulang
+            -- meski daftar fiturnya sama.
+            UpdateList(true)
         end
     end
     
@@ -3313,7 +3367,10 @@ function Library:AddDraggableImageButton(...)
     end
     Library:AddOutline(Button)
 
-    local DragThreshold = if ExcludeDragging then 0.25 else math.huge
+    -- Tombol yang BISA di-drag butuh threshold finite supaya melepas mouse
+    -- setelah men-drag tidak ikut memicu klik; tombol yang tidak bisa di-drag
+    -- tidak mungkin dragging, jadi kliknya selalu sah.  Logika lama terbalik.
+    local DragThreshold = if ExcludeDragging then math.huge else 0.25
     Button.InputBegan:Connect(function(Input: InputObject)
         if not IsClickInput(Input) then
             return
@@ -3327,17 +3384,19 @@ function Library:AddDraggableImageButton(...)
                 return
             end
 
+            -- Disconnect di semua jalur keluar; sebelumnya jalur "sedang
+            -- dragging" return lebih dulu dan meninggalkan koneksi mati.
+            if Changed and Changed.Connected then
+                Changed:Disconnect()
+                Changed = nil
+            end
+
             local IsLikelyDragging = tick() - Start > DragThreshold
             if IsLikelyDragging then
                 return
             end
 
             Library:SafeCallback(Func, DraggableImageButton)
-
-            if Changed and Changed.Connected then
-                Changed:Disconnect()
-                Changed = nil
-            end
         end)
     end)
 
@@ -18403,6 +18462,10 @@ function Library:CreateKeySystem(Info)
     Arqel.Callbacks.OnClose = function()
         if Info.CloseCallback then Library:SafeCallback(Info.CloseCallback) end
     end
+    -- Reset global basi dari run sebelumnya: SCRIPT_KEY/ArqelClosed yang masih
+    -- tersisa membuat loop di bawah langsung lolos tanpa verifikasi.
+    getgenv().SCRIPT_KEY = nil
+    getgenv().ArqelClosed = nil
     Arqel:LaunchJunkie({ Service = Info.Service, Identifier = Info.Identifier, Provider = Info.Provider })
     while not getgenv().SCRIPT_KEY and not getgenv().ArqelClosed do task.wait(0.1) end
     local key = getgenv().SCRIPT_KEY
@@ -18461,6 +18524,9 @@ function Library:CreateAegisKeySystem(Info)
     Arqel.Callbacks.OnClose = function()
         if Info.CloseCallback then Library:SafeCallback(Info.CloseCallback) end
     end
+    -- Reset global basi dari run sebelumnya (lihat catatan di CreateKeySystem).
+    getgenv().SCRIPT_KEY = nil
+    getgenv().ArqelClosed = nil
     Arqel:Launch()
     while not getgenv().SCRIPT_KEY and not getgenv().ArqelClosed do task.wait(0.1) end
     local key = getgenv().SCRIPT_KEY
@@ -18521,8 +18587,12 @@ function Library:CreateKeyForgeKeySystem(Info)
         end)
     end
     Arqel.Callbacks.OnVerify = function(key)
-        local verified = client:verify(key)
-        if typeof(verified) ~= "table" then
+        -- pcall: error jaringan/HTTP di verify tidak boleh merambat mentah ke
+        -- Arqel; jadikan hasil verifikasi gagal yang rapi.
+        local verifyOk, verified = pcall(function()
+            return client:verify(key)
+        end)
+        if not verifyOk or typeof(verified) ~= "table" then
             return { valid = false, error = "ERROR", message = "Verification failed" }
         end
         if not verified.ok then
@@ -18547,6 +18617,9 @@ function Library:CreateKeyForgeKeySystem(Info)
     Arqel.Callbacks.OnClose = function()
         if Info.CloseCallback then Library:SafeCallback(Info.CloseCallback) end
     end
+    -- Reset global basi dari run sebelumnya (lihat catatan di CreateKeySystem).
+    getgenv().SCRIPT_KEY = nil
+    getgenv().ArqelClosed = nil
     Arqel:Launch()
     while not getgenv().SCRIPT_KEY and not getgenv().ArqelClosed do task.wait(0.1) end
     local key = getgenv().SCRIPT_KEY
@@ -18578,6 +18651,9 @@ function Library:CreateArqelKeySystem(Info)
     Arqel.Callbacks.OnClose = function()
         if Info.CloseCallback then Library:SafeCallback(Info.CloseCallback) end
     end
+    -- Reset global basi dari run sebelumnya (lihat catatan di CreateKeySystem).
+    getgenv().SCRIPT_KEY = nil
+    getgenv().ArqelClosed = nil
     Arqel:Launch()
     while not getgenv().SCRIPT_KEY and not getgenv().ArqelClosed do task.wait(0.1) end
     local key = getgenv().SCRIPT_KEY
@@ -18715,7 +18791,12 @@ function Library:Unload()
     Library.KeybindFrame = nil
     Library.KeybindContainer = nil
 
-    getgenv().Library = nil
+    -- Hanya lepas global kalau masih menunjuk ke instance INI: pola multi
+    -- instance (key window + main hub) me-load library dua kali, dan unload
+    -- instance lama tidak boleh mencabut global milik instance yang baru.
+    if getgenv().Library == Library then
+        getgenv().Library = nil
+    end
 end
 
 getgenv().Library = Library
