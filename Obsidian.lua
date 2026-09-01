@@ -4234,19 +4234,24 @@ do
         do
             local Holder = New("TextButton", {
                 BackgroundTransparency = 1,
+                ClipsDescendants = true,
                 Size = UDim2.new(1, 0, 0, 16),
                 Text = "",
                 Visible = not Info.NoUI,
                 Parent = Library.KeybindContainer,
             })
 
+            -- Lebar penuh + TextTruncate, bukan AutomaticSize.X: menu keybind
+            -- lebarnya tetap (250px dari AddDraggableMenu), jadi teks panjang
+            -- harus dipotong dengan elipsis alih-alih meluber keluar kotak.
             local Label = New("TextLabel", {
-                AutomaticSize = Enum.AutomaticSize.X,
                 BackgroundTransparency = 1,
-                Size = UDim2.fromScale(0, 1),
+                Size = UDim2.new(1, 0, 1, 0),
                 Text = "",
                 TextSize = 14,
                 TextTransparency = 0.5,
+                TextTruncate = Enum.TextTruncate.AtEnd,
+                TextXAlignment = Enum.TextXAlignment.Left,
                 Parent = Holder,
             })
 
@@ -4299,6 +4304,9 @@ do
 
                 Holder.Active = not Normal
                 Label.Position = Normal and UDim2.fromOffset(0, 0) or UDim2.fromOffset(22, 0)
+                -- Saat checkbox tampil, label digeser 22px; lebarnya ikut
+                -- dikurangi supaya truncate tetap pas di tepi kanan menu.
+                Label.Size = Normal and UDim2.new(1, 0, 1, 0) or UDim2.new(1, -22, 1, 0)
                 Checkbox.Visible = not Normal
             end
 
