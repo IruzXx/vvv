@@ -318,6 +318,8 @@ local Library = {
     SpecificCorners = {},
     --// Stay fully rounded, but square off with everything else at radius 0
     PillCorners = {},
+    --// [line] = ApplyGeometry, direfresh saat CornerRadius berubah
+    RunningLines = {},
 
     --// Animations \\--
     TweenInfo = TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
@@ -2416,23 +2418,92 @@ function Library:AddRunningLineBorder(Parent, Config)
     local Enabled = Config.Enabled ~= false
     
     if not Enabled then return nil end
-    
+
+    assert(
+        typeof(Parent) == "Instance" and Parent:IsA("GuiObject"),
+        "AddRunningLineBorder expects a GuiObject as Parent, got: " .. typeof(Parent)
+    )
+
     local RunService = game:GetService("RunService")
-    
-    -- Create FULL-WIDTH line at bottom (di luar text padding + outline area)
+
+    -- Garis diposisikan relatif terhadap *content box* parent, yaitu area yang
+    -- sudah dikurangi UIPadding.  Parent yang ber-padding (mis. Label milik
+    -- AddDraggableLabel) karena itu perlu dikompensasi balik, kalau tidak garis
+    -- akan ter-inset sejauh padding-nya dan tidak konsisten dengan parent yang
+    -- tidak ber-padding (Button / Holder).
+    --
+    -- Inset horizontalnya sendiri diturunkan dari corner radius, bukan angka
+    -- hardcoded: garis lurus di dekat sisi bawah frame yang sudutnya membulat
+    -- akan menyembul keluar siluet kalau inset-nya lebih kecil dari lengkung
+    -- sudut.  BottomGap dijaga konstan berapa pun LineHeight-nya.
+    local BottomGap = 2
+
+    local function GetPadding()
+        local Padding = Parent:FindFirstChildOfClass("UIPadding")
+        if not Padding then
+            return 0, 0, 0
+        end
+        return Padding.PaddingLeft.Offset, Padding.PaddingRight.Offset, Padding.PaddingBottom.Offset
+    end
+
+    -- Inset minimum agar ujung garis tetap berada di dalam sudut membulat.
+    -- Untuk radius R dan jarak d dari sisi bawah: R - sqrt(R^2 - (R-d)^2).
+    local function GetCornerInset()
+        local Radius = Library.CornerRadius or 0
+        if Radius <= 0 then
+            return 0
+        end
+
+        local Delta = Radius - BottomGap
+        if Delta <= 0 then
+            return 0
+        end
+
+        return Radius - math.sqrt(math.max(Radius * Radius - Delta * Delta, 0))
+    end
+
     local line = New("Frame", {
-        Size = UDim2.new(1, -8, 0, LineHeight), -- Full width minus inset
-        Position = UDim2.new(0, 4, 1, -LineHeight - 2), -- Extra offset untuk avoid overlap
         BackgroundTransparency = 0,
         BorderSizePixel = 0,
         ZIndex = Parent.ZIndex + 10,
         Parent = Parent,
     })
-    
-    -- Set color (theme or custom)
-    if type(LineColor) == "string" and LineColor == "AccentColor" then
-        line.BackgroundColor3 = Library.Scheme.AccentColor
-        Library:AddToRegistry(line, { BackgroundColor3 = "AccentColor" })
+
+    -- Dipanggil ulang setiap kali padding atau corner radius berubah, sehingga
+    -- garis tetap sejajar setelah SetIcon() atau Window:SetCornerRadius().
+    local function ApplyGeometry()
+        local PadLeft, PadRight, PadBottom = GetPadding()
+        local Inset = math.ceil(GetCornerInset())
+
+        line.Size = UDim2.new(1, PadLeft + PadRight - (Inset * 2), 0, LineHeight)
+        line.Position = UDim2.new(0, Inset - PadLeft, 1, PadBottom - LineHeight - BottomGap)
+    end
+
+    ApplyGeometry()
+
+    -- SetIcon() mengubah PaddingLeft/PaddingRight saat runtime, dan
+    -- Window:SetCornerRadius() mengubah radius.  Daftarkan garis supaya
+    -- geometrinya ikut menyesuaikan alih-alih tertinggal di nilai awal.
+    local PaddingConnection
+    do
+        local Padding = Parent:FindFirstChildOfClass("UIPadding")
+        if Padding then
+            PaddingConnection = Padding.Changed:Connect(ApplyGeometry)
+            Library:GiveSignal(PaddingConnection)
+        end
+    end
+
+    Library.RunningLines[line] = ApplyGeometry
+
+    local function Unregister()
+        Library.RunningLines[line] = nil
+    end
+
+    -- Set color (theme or custom).  Saat UseRainbow aktif warnanya di-drive
+    -- per frame, jadi jangan didaftarkan ke registry tema supaya keduanya tidak
+    -- saling menimpa.
+    if UseRainbow then
+        line.BackgroundColor3 = Color3.fromHSV(0, 1, 1)
     elseif typeof(LineColor) == "Color3" then
         line.BackgroundColor3 = LineColor
     else
@@ -2461,18 +2532,24 @@ function Library:AddRunningLineBorder(Parent, Config)
     -- Animate gradient offset for "running" effect
     local animating = true
     local offset = 0
+    local hue = 0
     
     local connection = RunService.RenderStepped:Connect(function(dt)
         if not animating then return end
-        
+
         -- Update offset for smooth movement
         offset = offset + (dt / AnimationSpeed)
         if offset >= 1 then
             offset = 0 -- Loop
         end
-        
+
         -- Move gradient horizontally (creates running effect)
         gradient.Offset = Vector2.new(offset * 2 - 1, 0) -- -1 to 1
+
+        if UseRainbow then
+            hue = (hue + dt / AnimationSpeed) % 1
+            line.BackgroundColor3 = Color3.fromHSV(hue, 1, 1)
+        end
     end)
     
     -- Rounded corners for smooth edges
@@ -2481,34 +2558,75 @@ function Library:AddRunningLineBorder(Parent, Config)
         Parent = line,
     })
     
-    -- Return controller
-    local Controller = {
-        Stop = function()
-            animating = false
-            if connection then
-                connection:Disconnect()
-            end
-            if line then
-                line:Destroy()
-            end
-        end,
-        SetColor = function(Color)
-            if typeof(Color) == "Color3" and line then
-                line.BackgroundColor3 = Color
-            end
-        end,
-        SetSpeed = function(Speed)
-            AnimationSpeed = Speed
-        end,
-    }
-    
+    -- Return controller.
+    --
+    -- Controller ini tabel closure biasa, jadi pemanggilan yang benar memakai
+    -- titik: RunningLine.SetColor(c).  Karena seluruh API library lain memakai
+    -- titik-dua, salah-pakai jadi jebakan yang mudah — dulu `:SetColor(c)`
+    -- mengirim tabel controller sebagai argumen Color dan gagal tanpa suara.
+    -- Resolve() membuat kedua gaya bekerja.
+    local Controller = {}
+
+    local function Resolve(First, Second)
+        if First == Controller then
+            return Second
+        end
+        return First
+    end
+
+    function Controller.Stop()
+        animating = false
+        if connection then
+            connection:Disconnect()
+            connection = nil
+        end
+        if PaddingConnection then
+            PaddingConnection:Disconnect()
+            PaddingConnection = nil
+        end
+        Unregister()
+        if line then
+            line:Destroy()
+        end
+    end
+
+    function Controller.SetColor(First, Second)
+        local Color = Resolve(First, Second)
+        if typeof(Color) ~= "Color3" then
+            warn("RunningLine.SetColor expects a Color3, got: " .. typeof(Color))
+            return
+        end
+        if line and line.Parent then
+            UseRainbow = false -- warna eksplisit mengalahkan rainbow
+            -- Lepas dari registry tema, kalau tidak warna ini akan ditimpa lagi
+            -- pada perubahan tema berikutnya.
+            Library:RemoveFromRegistry(line)
+            line.BackgroundColor3 = Color
+        end
+    end
+
+    function Controller.SetSpeed(First, Second)
+        local Speed = Resolve(First, Second)
+        if type(Speed) ~= "number" or Speed <= 0 then
+            warn("RunningLine.SetSpeed expects a positive number, got: " .. tostring(Speed))
+            return
+        end
+        AnimationSpeed = Speed
+    end
+
     Library:GiveSignal(line.Destroying:Connect(function()
         animating = false
         if connection then
             connection:Disconnect()
+            connection = nil
         end
+        if PaddingConnection then
+            PaddingConnection:Disconnect()
+            PaddingConnection = nil
+        end
+        Unregister()
     end))
-    
+
     return Controller
 end
 
@@ -2867,13 +2985,16 @@ function Library:AddDraggableMenu(Name: string)
 
     PositionDraggable(Holder, Holder.Position)
     
-    -- Add running line border (default: AccentColor, theme-synced)
+    -- Add running line border (default: AccentColor, theme-synced).
+    -- Dikembalikan sebagai nilai ketiga supaya bisa dikustomisasi atau dihapus
+    -- lewat :Stop(); pemanggil lama yang hanya mengambil dua nilai tidak
+    -- terpengaruh.
     local MenuRunningLine = Library:AddRunningLineBorder(Holder, {
         Color = "AccentColor",
         Enabled = true,
     })
 
-    return Holder, Container
+    return Holder, Container, MenuRunningLine
 end
 
 -- ========================================================================== --
@@ -13028,6 +13149,16 @@ function Library:CreateWindow(WindowInfo)
         Library.CornerRadius = Radius
         WindowInfo.CornerRadius = Radius
 
+        -- Inset garis running line diturunkan dari CornerRadius, jadi harus
+        -- dihitung ulang setelah nilainya berubah.
+        for Line, ApplyGeometry in Library.RunningLines do
+            if Line.Parent then
+                ApplyGeometry()
+            else
+                Library.RunningLines[Line] = nil
+            end
+        end
+
         ResizeButton.Position = UDim2.new(1, -Radius / 4, 0, 0)
         BottomBackground.Size = UDim2.new(1, 0, 0, 20 + Radius)
 
@@ -13044,6 +13175,20 @@ function Library:CreateWindow(WindowInfo)
 
     function Window:SetGlow(State: boolean)
         return Library:SetGlow(State)
+    end
+
+    -- Menaikkan DisplayOrder ScreenGui library supaya menang render terhadap
+    -- GUI lain di game.  Nilai dasarnya 998 (lihat pembuatan Library.ScreenGui).
+    function Window:SetAlwaysOnTop(Value: boolean?)
+        Value = Value == true
+        WindowInfo.AlwaysOnTop = Value
+        Window.AlwaysOnTop = Value
+
+        if Library.ScreenGui then
+            Library.ScreenGui.DisplayOrder = Value and 10000 or 998
+        end
+
+        return Window
     end
 
     function Window:SetAnimations(Animations: { [string]: boolean }?, TabTransitionTime: number?, TabSwipeOffset: number?, TabSwipeFrom: ("left" | "right" | "top" | "bottom" | string)?)
@@ -13863,8 +14008,29 @@ function Library:CreateWindow(WindowInfo)
         end
 
         local function RenderUserPanelInformation(Information)
-            ClearUserPanelInformation()
             local Rows = NormalizeUserPanelInformation(Information)
+
+            -- Reuse label yang sudah ada kalau jumlah barisnya sama.  Pemanggil
+            -- berkala (mis. jam yang diperbarui per detik) jadi cukup mengganti
+            -- Text, tanpa destroy/create instance setiap kali.
+            if #Rows == #UserPanelInformationLabels then
+                local Reusable = true
+                for _, Label in ipairs(UserPanelInformationLabels) do
+                    if not Label or not Label.Parent then
+                        Reusable = false
+                        break
+                    end
+                end
+
+                if Reusable then
+                    for Index, Row in ipairs(Rows) do
+                        UserPanelInformationLabels[Index].Text = "• " .. tostring(Row)
+                    end
+                    return
+                end
+            end
+
+            ClearUserPanelInformation()
             for Index, Row in ipairs(Rows) do
                 local Label = New("TextLabel", {
                     AutomaticSize = Enum.AutomaticSize.Y,
@@ -14194,6 +14360,22 @@ function Library:CreateWindow(WindowInfo)
                 if typeof(GlowInfo.Transparency) == "number" then State.GlowTransparency = GlowInfo.Transparency end
             end
             WarningBoxHolder.Visible = true
+            Tab:RefreshUserPanelTheme()
+            Tab:Resize(true)
+            return Tab
+        end
+
+        -- Memperbarui hanya baris Information, tanpa menyentuh avatar.
+        -- Tab:UserPanelBox() memanggil RenderUserPanelAvatar() juga, sehingga
+        -- memakainya untuk update berkala (mis. jam) akan me-refetch thumbnail
+        -- setiap kali.  Pakai ini untuk itu.
+        function Tab:SetUserPanelInformation(Information)
+            local State = Tab.UserPanelState
+            State.Defined = true
+            State.Information = Information
+
+            WarningBoxHolder.Visible = true
+            RenderUserPanelInformation(State.Information)
             Tab:RefreshUserPanelTheme()
             Tab:Resize(true)
             return Tab
